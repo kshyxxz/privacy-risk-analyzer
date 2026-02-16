@@ -1,0 +1,20 @@
+.container {
+  padding: 24px;
+}
+
+.form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  max-width: 600px;
+}
+
+.input {
+  padding: 6px;
+}
+
+.button {
+  grid-column: span 2;
+  padding: 6px;
+  cursor: pointer;
+}
