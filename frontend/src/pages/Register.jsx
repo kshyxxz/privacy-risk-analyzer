@@ -1,13 +1,130 @@
+import { useContext, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { AuthContext } from "../context/AuthContext";
+import api from "../api/axiosConfig";
+
 export default function Register() {
+	const [username, setUsername] = useState("");
+	const [email, setEmail] = useState("");
+	const [password, setPassword] = useState("");
+	const [confirmPassword, setConfirmPassword] = useState("");
+	const [role, setRole] = useState("Analyst");
+	const [error, setError] = useState("");
+	const [loading, setLoading] = useState(false);
+	const navigate = useNavigate();
+	const { login } = useContext(AuthContext);
+
+	const handleSubmit = async (e) => {
+		e.preventDefault();
+		setError("");
+
+		if (password !== confirmPassword) {
+			setError("Passwords do not match");
+			return;
+		}
+
+		if (password.length < 6) {
+			setError("Password must be at least 6 characters");
+			return;
+		}
+
+		setLoading(true);
+
+		try {
+			const response = await api.post("/auth/register", {
+				username,
+				email,
+				password,
+				role,
+			});
+
+			if (response.status === 201) {
+				login(response.data.user);
+				navigate("/dashboard");
+			}
+		} catch (err) {
+			setError(
+				err.response?.data?.error ||
+					"Registration failed. Please try again.",
+			);
+		} finally {
+			setLoading(false);
+		}
+	};
+
 	return (
-		<div>
-			<h1>Register Page</h1>
-			<div>
-				<input type="text" name="username" placeholder="Username" />
-				<input type="email" name="email" placeholder="Email" />
-				<input type="password" name="password" placeholder="Password" />
-				<button type="submit">Register</button>
-			</div>
+		<div style={{ maxWidth: "400px", margin: "50px auto" }}>
+			<h1>Register</h1>
+			{error && <p style={{ color: "red" }}>{error}</p>}
+			<form onSubmit={handleSubmit}>
+				<div style={{ marginBottom: "15px" }}>
+					<label>Username:</label>
+					<input
+						type="text"
+						placeholder="Choose a username"
+						value={username}
+						onChange={(e) => setUsername(e.target.value)}
+						required
+						style={{ width: "100%", padding: "8px" }}
+					/>
+				</div>
+				<div style={{ marginBottom: "15px" }}>
+					<label>Email:</label>
+					<input
+						type="email"
+						placeholder="Enter your email"
+						value={email}
+						onChange={(e) => setEmail(e.target.value)}
+						required
+						style={{ width: "100%", padding: "8px" }}
+					/>
+				</div>
+				<div style={{ marginBottom: "15px" }}>
+					<label>Role:</label>
+					<select
+						value={role}
+						onChange={(e) => setRole(e.target.value)}
+						required
+						style={{ width: "100%", padding: "8px" }}
+					>
+						<option value="Analyst">Analyst</option>
+						<option value="Admin">Admin</option>
+						<option value="Intern">Intern</option>
+					</select>
+				</div>
+				<div style={{ marginBottom: "15px" }}>
+					<label>Password:</label>
+					<input
+						type="password"
+						placeholder="Create a password"
+						value={password}
+						onChange={(e) => setPassword(e.target.value)}
+						required
+						style={{ width: "100%", padding: "8px" }}
+					/>
+				</div>
+				<div style={{ marginBottom: "15px" }}>
+					<label>Confirm Password:</label>
+					<input
+						type="password"
+						placeholder="Confirm your password"
+						value={confirmPassword}
+						onChange={(e) => setConfirmPassword(e.target.value)}
+						required
+						style={{ width: "100%", padding: "8px" }}
+					/>
+				</div>
+				<button
+					type="submit"
+					disabled={loading}
+					style={{ width: "100%", padding: "10px" }}
+				>
+					{loading ? "Registering..." : "Register"}
+				</button>
+			</form>
+			<p>
+				Already have an account? <a href="/login">Login here</a>
+			</p>
 		</div>
 	);
 }

@@ -4,5 +4,7 @@ const assetPiiController = require("../controllers/assetPiiController");
 
 router.post("/assign", assetPiiController.assignPiiToAsset);
 router.get("/:asset_id", assetPiiController.getPiiByAsset);
+router.delete("/remove", assetPiiController.removePiiFromAsset);
+router.put("/update", assetPiiController.updateAssetPiiMapping);
 
 module.exports = router;

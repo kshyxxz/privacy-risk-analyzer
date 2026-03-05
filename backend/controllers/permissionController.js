@@ -1,7 +1,8 @@
 const pool = require("../config/db");
 
 exports.getAllPermissions = async (req, res) => {
-	const result = await pool.query(`
+	try {
+		const result = await pool.query(`
     SELECT ap.permission_id,
            r.role_name,
            d.asset_name,
@@ -12,41 +13,77 @@ exports.getAllPermissions = async (req, res) => {
     ORDER BY ap.permission_id
   `);
 
-	res.json(result.rows);
+		res.status(200).json(result.rows);
+	} catch (error) {
+		console.error("Error fetching permissions:", error);
+		res.status(500).json({ error: "Failed to fetch permissions" });
+	}
 };
 
 exports.createPermission = async (req, res) => {
-	const { role_id, asset_id, access_type } = req.body;
+	try {
+		const { role_id, asset_id, access_type } = req.body;
 
-	const result = await pool.query(
-		`INSERT INTO access_permission (role_id, asset_id, access_type)
+		if (!role_id || !asset_id || !access_type) {
+			return res.status(400).json({
+				error: "Missing required fields: role_id, asset_id, access_type",
+			});
+		}
+
+		const result = await pool.query(
+			`INSERT INTO access_permission (role_id, asset_id, access_type)
      VALUES ($1,$2,$3) RETURNING *`,
-		[role_id, asset_id, access_type],
-	);
+			[role_id, asset_id, access_type],
+		);
 
-	res.json(result.rows[0]);
+		res.status(201).json(result.rows[0]);
+	} catch (error) {
+		console.error("Error creating permission:", error);
+		res.status(500).json({ error: "Failed to create permission" });
+	}
 };
 
 exports.updatePermission = async (req, res) => {
-	const { id } = req.params;
-	const { role_id, asset_id, access_type } = req.body;
+	try {
+		const { id } = req.params;
+		const { role_id, asset_id, access_type } = req.body;
 
-	await pool.query(
-		`UPDATE access_permission
+		if (!id || !role_id || !asset_id || !access_type) {
+			return res.status(400).json({
+				error: "Missing required fields: id, role_id, asset_id, access_type",
+			});
+		}
+
+		await pool.query(
+			`UPDATE access_permission
      SET role_id=$1, asset_id=$2, access_type=$3
      WHERE permission_id=$4`,
-		[role_id, asset_id, access_type, id],
-	);
+			[role_id, asset_id, access_type, id],
+		);
 
-	res.json({ message: "Permission updated" });
+		res.status(200).json({ message: "Permission updated successfully" });
+	} catch (error) {
+		console.error("Error updating permission:", error);
+		res.status(500).json({ error: "Failed to update permission" });
+	}
 };
 
 exports.deletePermission = async (req, res) => {
-	const { id } = req.params;
+	try {
+		const { id } = req.params;
 
-	await pool.query("DELETE FROM access_permission WHERE permission_id=$1", [
-		id,
-	]);
+		if (!id) {
+			return res.status(400).json({ error: "Permission ID is required" });
+		}
 
-	res.json({ message: "Permission deleted" });
+		await pool.query(
+			"DELETE FROM access_permission WHERE permission_id=$1",
+			[id],
+		);
+
+		res.status(200).json({ message: "Permission deleted successfully" });
+	} catch (error) {
+		console.error("Error deleting permission:", error);
+		res.status(500).json({ error: "Failed to delete permission" });
+	}
 };
