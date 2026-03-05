@@ -13,13 +13,16 @@ const SecurityControlForm = ({ refreshData }) => {
 	const [hashing, setHashing] = useState(false);
 
 	useEffect(() => {
-		fetchAssets();
-	}, []);
+		let mounted = true;
+		(async () => {
+			const res = await getAssets();
+			if (mounted) setAssets(res.data);
+		})();
 
-	const fetchAssets = async () => {
-		const res = await getAssets();
-		setAssets(res.data);
-	};
+		return () => {
+			mounted = false;
+		};
+	}, []);
 
 	const handleSubmit = async (e) => {
 		e.preventDefault();

@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useParams } from "react-router-dom";
-import API from "../api";
+import API from "../api/axiosConfig";
 
 function EditPermission() {
 	const { id } = useParams();

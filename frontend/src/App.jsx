@@ -1,35 +1,53 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+
+import LandingPage from "./pages/LandingPage";
+import PiiTypes from "./pages/PiiTypes";
+import AddPiiType from "./pages/AddPiiType";
+import EditPiiType from "./pages/EditPiiType";
+
+import Permissions from "./pages/Permissions";
+import AddPermission from "./pages/AddPermission";
+import EditPermission from "./pages/EditPermission";
+
+import AssignPiiToAsset from "./pages/AssignPiiToAsset";
+
+import AuditLogs from "./pages/audit/AuditLogs";
+import SecurityControl from "./pages/security/SecurityControl";
 
 function App() {
-  const [count, setCount] = useState(0)
-
-  return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.jsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
+	return (
+		<Router>
+			<Routes>
+				<Route path="/login" element={<Login />} />
+				<Route path="/register" element={<Register />} />
+				<Route
+					path="/dashboard"
+					element={
+						<ProtectedRoute>
+							<Dashboard />
+						</ProtectedRoute>
+					}
+				/>
+				<Route path="*" element={<Navigate to="/login" />} />
+				<Route path="/" element={<LandingPage />} />
+				<Route path="/pii-types" element={<PiiTypes />} />
+				<Route path="/pii-types/add" element={<AddPiiType />} />
+				<Route path="/pii-types/edit/:id" element={<EditPiiType />} />
+				<Route path="/permissions" element={<Permissions />} />
+				<Route path="/permissions/add" element={<AddPermission />} />
+				<Route
+					path="/permissions/edit/:id"
+					element={<EditPermission />}
+				/>
+				<Route path="/assign-pii" element={<AssignPiiToAsset />} />
+				<Route path="/audit-logs" element={<AuditLogs />} />
+				<Route
+					path="/security-controls"
+					element={<SecurityControl />}
+				/>
+			</Routes>
+		</Router>
+	);
 }
 
-export default App
+export default App;

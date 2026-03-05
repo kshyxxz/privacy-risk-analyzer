@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import API from "../api";
+import API from "../api/axiosConfig";
 
 function AddPermission() {
 	const [roles, setRoles] = useState([]);

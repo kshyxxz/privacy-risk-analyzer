@@ -1,13 +1,18 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import API from "../api/axiosConfig";
 
 export default function Permissions() {
 	const [permissions, setPermissions] = useState([]);
 	const fetchPermission = async () => {
-		await API.get("/permissions").then(res, setPermissions(res.data));
+		const res = await API.get("/permissions");
+		setPermissions(res.data);
 	};
+
 	useEffect(() => {
-		fetchPermission();
+		(async () => {
+			await fetchPermission();
+		})();
 	}, []);
 	const deletePermission = async (id) => {
 		await API.delete(`/permissions/${id}`);

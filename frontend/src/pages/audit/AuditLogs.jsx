@@ -7,13 +7,11 @@ const AuditLogs = () => {
 	const [logs, setLogs] = useState([]);
 	const [filters, setFilters] = useState({});
 
-	const fetchLogs = async () => {
-		const res = await getAuditLogs(filters);
-		setLogs(res.data);
-	};
-
 	useEffect(() => {
-		fetchLogs();
+		(async () => {
+			const res = await getAuditLogs(filters);
+			setLogs(res.data);
+		})();
 	}, [filters]);
 
 	return (

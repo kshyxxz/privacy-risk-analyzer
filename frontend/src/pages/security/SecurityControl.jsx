@@ -6,14 +6,22 @@ import { getSecurityControls } from "../../services/securityService";
 const SecurityControl = () => {
 	const [controls, setControls] = useState([]);
 
-	useEffect(() => {
-		fetchControls();
-	}, []);
-
 	const fetchControls = async () => {
 		const res = await getSecurityControls();
 		setControls(res.data);
 	};
+
+	useEffect(() => {
+		let mounted = true;
+		(async () => {
+			const res = await getSecurityControls();
+			if (mounted) setControls(res.data);
+		})();
+
+		return () => {
+			mounted = false;
+		};
+	}, []);
 
 	return (
 		<div className="security-page">
