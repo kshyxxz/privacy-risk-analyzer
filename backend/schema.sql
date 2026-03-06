@@ -1,116 +1,137 @@
--- Privacy Risk Analyzer Database Schema
+-- 1. ROLE TABLE
+CREATE TABLE role (
+    role_id SERIAL PRIMARY KEY,
+    role_name VARCHAR(50) NOT NULL UNIQUE,
+    description TEXT
+);
 
--- Users Table
-CREATE TABLE IF NOT EXISTS users (
+
+-- 2. USER TABLE
+CREATE TABLE users (
     user_id SERIAL PRIMARY KEY,
-    username VARCHAR(255) NOT NULL UNIQUE,
-    email VARCHAR(255) NOT NULL UNIQUE,
-    password VARCHAR(255) NOT NULL,
-    role VARCHAR(50) NOT NULL CHECK (role IN ('Admin', 'Analyst', 'Intern')),
+    username VARCHAR(50) NOT NULL UNIQUE,
+    email VARCHAR(100) NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    role_id INT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    
+    CONSTRAINT fk_user_role
+        FOREIGN KEY (role_id)
+        REFERENCES role(role_id)
+        ON DELETE SET NULL
 );
 
--- Assets Table
-CREATE TABLE IF NOT EXISTS assets (
+
+-- 3. DATA ASSET TABLE
+CREATE TABLE data_asset (
     asset_id SERIAL PRIMARY KEY,
-    asset_name VARCHAR(255) NOT NULL,
-    description TEXT,
-    asset_type VARCHAR(100),
-    risk_level VARCHAR(50) CHECK (risk_level IN ('high', 'medium', 'low')),
-    owner_id INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
+    asset_name VARCHAR(100) NOT NULL,
+    db_name VARCHAR(100),
+    table_name VARCHAR(100),
+    sensitivity_level VARCHAR(50),
+    contains_pii BOOLEAN DEFAULT FALSE,
+    created_by INT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    
+    CONSTRAINT fk_asset_user
+        FOREIGN KEY (created_by)
+        REFERENCES users(user_id)
+        ON DELETE SET NULL
 );
 
--- PII Types Table
-CREATE TABLE IF NOT EXISTS pii (
+
+-- 4. PII TYPE TABLE
+CREATE TABLE pii_type (
     pii_id SERIAL PRIMARY KEY,
-    pii_name VARCHAR(255) NOT NULL UNIQUE,
-    description TEXT,
-    sensitivity_level VARCHAR(50) CHECK (sensitivity_level IN ('high', 'medium', 'low')),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    pii_name VARCHAR(100) NOT NULL,
+    pii_category VARCHAR(100),
+    pii_weight INT NOT NULL
 );
 
--- Asset-PII Junction Table (Many-to-Many Relationship)
-CREATE TABLE IF NOT EXISTS asset_pii (
-    asset_pii_id SERIAL PRIMARY KEY,
-    asset_id INTEGER NOT NULL REFERENCES assets(asset_id) ON DELETE CASCADE,
-    pii_id INTEGER NOT NULL REFERENCES pii(pii_id) ON DELETE CASCADE,
-    discovery_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(asset_id, pii_id)
+
+-- 5. ASSET – PII MAPPING TABLE
+CREATE TABLE asset_pii_mapping (
+    mapping_id SERIAL PRIMARY KEY,
+    asset_id INT NOT NULL,
+    pii_id INT NOT NULL,
+    column_name VARCHAR(100),
+    
+    CONSTRAINT fk_mapping_asset
+        FOREIGN KEY (asset_id)
+        REFERENCES data_asset(asset_id)
+        ON DELETE CASCADE,
+        
+    CONSTRAINT fk_mapping_pii
+        FOREIGN KEY (pii_id)
+        REFERENCES pii_type(pii_id)
+        ON DELETE CASCADE
 );
 
--- Permissions Table
-CREATE TABLE IF NOT EXISTS permissions (
+
+-- 6. ACCESS PERMISSION TABLE
+CREATE TABLE access_permission (
     permission_id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
-    asset_id INTEGER NOT NULL REFERENCES assets(asset_id) ON DELETE CASCADE,
-    permission_type VARCHAR(50) CHECK (permission_type IN ('read', 'write', 'delete', 'admin')),
-    granted_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(user_id, asset_id)
+    asset_id INT NOT NULL,
+    role_id INT NOT NULL,
+    access_type VARCHAR(20) CHECK (access_type IN ('READ','WRITE','UPDATE')),
+    
+    CONSTRAINT fk_permission_asset
+        FOREIGN KEY (asset_id)
+        REFERENCES data_asset(asset_id)
+        ON DELETE CASCADE,
+        
+    CONSTRAINT fk_permission_role
+        FOREIGN KEY (role_id)
+        REFERENCES role(role_id)
+        ON DELETE CASCADE
 );
 
--- Audit Logs Table
-CREATE TABLE IF NOT EXISTS audit_logs (
-    audit_id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES users(user_id) ON DELETE SET NULL,
-    action VARCHAR(255) NOT NULL,
-    entity_type VARCHAR(100),
-    entity_id INTEGER,
-    changes JSON,
-    ip_address VARCHAR(45),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
 
--- Security Controls Table
-CREATE TABLE IF NOT EXISTS security_controls (
+-- 7. SECURITY CONTROL TABLE
+CREATE TABLE security_control (
     control_id SERIAL PRIMARY KEY,
-    control_name VARCHAR(255) NOT NULL,
-    description TEXT,
-    asset_id INTEGER REFERENCES assets(asset_id) ON DELETE CASCADE,
-    control_status VARCHAR(50) CHECK (control_status IN ('active', 'inactive', 'pending')),
-    created_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    asset_id INT UNIQUE,
+    encryption BOOLEAN DEFAULT FALSE,
+    masking BOOLEAN DEFAULT FALSE,
+    hashing BOOLEAN DEFAULT FALSE,
+    
+    CONSTRAINT fk_control_asset
+        FOREIGN KEY (asset_id)
+        REFERENCES data_asset(asset_id)
+        ON DELETE CASCADE
 );
 
--- Create Indexes for Better Query Performance
-CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
-CREATE INDEX IF NOT EXISTS idx_assets_risk_level ON assets(risk_level);
-CREATE INDEX IF NOT EXISTS idx_assets_owner_id ON assets(owner_id);
-CREATE INDEX IF NOT EXISTS idx_asset_pii_asset_id ON asset_pii(asset_id);
-CREATE INDEX IF NOT EXISTS idx_asset_pii_pii_id ON asset_pii(pii_id);
-CREATE INDEX IF NOT EXISTS idx_permissions_user_id ON permissions(user_id);
-CREATE INDEX IF NOT EXISTS idx_permissions_asset_id ON permissions(asset_id);
-CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id ON audit_logs(user_id);
-CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at);
-CREATE INDEX IF NOT EXISTS idx_security_controls_asset_id ON security_controls(asset_id);
 
--- Insert Default Admin User
-INSERT INTO users (username, email, password, role) 
-VALUES ('admin', 'admin@privacyrisk.com', '$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcg7b3XeKeUxWdeS86E36P4/Kym', 'Admin')
-ON CONFLICT (username) DO NOTHING;
+-- 8. AUDIT LOG TABLE
+CREATE TABLE audit_log (
+    log_id SERIAL PRIMARY KEY,
+    user_id INT,
+    asset_id INT,
+    action VARCHAR(20) CHECK (action IN ('READ','WRITE','UPDATE','DELETE')),
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    CONSTRAINT fk_log_user
+        FOREIGN KEY (user_id)
+        REFERENCES users(user_id)
+        ON DELETE SET NULL,
+        
+    CONSTRAINT fk_log_asset
+        FOREIGN KEY (asset_id)
+        REFERENCES data_asset(asset_id)
+        ON DELETE SET NULL
+);
 
--- Insert Sample Data
-INSERT INTO pii (pii_name, description, sensitivity_level) 
-VALUES 
-    ('Social Security Number', 'SSN used for identification', 'high'),
-    ('Credit Card Numbers', 'Payment card information', 'high'),
-    ('Email Address', 'Personal email', 'medium'),
-    ('Phone Number', 'Contact information', 'medium'),
-    ('Date of Birth', 'Personal date information', 'low')
-ON CONFLICT (pii_name) DO NOTHING;
 
-INSERT INTO assets (asset_name, description, asset_type, risk_level) 
-VALUES 
-    ('Customer Database', 'Main customer data storage', 'database', 'high'),
-    ('Employee Records', 'HR employee information', 'database', 'medium'),
-    ('Public Website', 'Company public web service', 'application', 'low'),
-    ('Financial Systems', 'Payment processing system', 'application', 'high'),
-    ('Backup Storage', 'Automated backup facility', 'storage', 'medium')
-ON CONFLICT DO NOTHING;
+-- 9. RISK ASSESSMENT TABLE
+CREATE TABLE risk_assessment (
+    risk_id SERIAL PRIMARY KEY,
+    asset_id INT UNIQUE,
+    risk_score NUMERIC(5,2),
+    risk_level VARCHAR(20) CHECK (risk_level IN ('LOW','MEDIUM','HIGH')),
+    last_analyzed TIMESTAMP,
+    
+    CONSTRAINT fk_risk_asset
+        FOREIGN KEY (asset_id)
+        REFERENCES data_asset(asset_id)
+        ON DELETE CASCADE
+);

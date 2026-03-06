@@ -7,6 +7,16 @@ import RiskChart from "../components/dashboard/RiskChart";
 import RecentActivity from "../components/dashboard/RecentActivity";
 import api from "../api/axiosConfig";
 
+// Helper: map sensitivity_level to risk category
+const getSensitivityRisk = (sensitivityLevel) => {
+	if (!sensitivityLevel) return null;
+	const level = sensitivityLevel.toLowerCase();
+	if (level === "high") return "high";
+	if (level === "medium") return "medium";
+	if (level === "low") return "low";
+	return null;
+};
+
 export default function Dashboard() {
 	const { user } = useContext(AuthContext);
 	const navigate = useNavigate();
@@ -60,30 +70,42 @@ export default function Dashboard() {
 						totalPiiTypes: piiRes.data?.length || 0,
 						highRiskAssets:
 							assetsRes.data?.filter(
-								(a) => a.risk_level === "high",
+								(a) =>
+									getSensitivityRisk(a.sensitivity_level) ===
+									"high",
 							).length || 0,
 						mediumRiskAssets:
 							assetsRes.data?.filter(
-								(a) => a.risk_level === "medium",
+								(a) =>
+									getSensitivityRisk(a.sensitivity_level) ===
+									"medium",
 							).length || 0,
 						lowRiskAssets:
 							assetsRes.data?.filter(
-								(a) => a.risk_level === "low",
+								(a) =>
+									getSensitivityRisk(a.sensitivity_level) ===
+									"low",
 							).length || 0,
 					});
 
 					setRiskData({
 						highRisk:
 							assetsRes.data?.filter(
-								(a) => a.risk_level === "high",
+								(a) =>
+									getSensitivityRisk(a.sensitivity_level) ===
+									"high",
 							).length || 0,
 						mediumRisk:
 							assetsRes.data?.filter(
-								(a) => a.risk_level === "medium",
+								(a) =>
+									getSensitivityRisk(a.sensitivity_level) ===
+									"medium",
 							).length || 0,
 						lowRisk:
 							assetsRes.data?.filter(
-								(a) => a.risk_level === "low",
+								(a) =>
+									getSensitivityRisk(a.sensitivity_level) ===
+									"low",
 							).length || 0,
 					});
 
@@ -109,15 +131,21 @@ export default function Dashboard() {
 						totalAssets: assetsRes.data?.length || 0,
 						highRiskAssets:
 							assetsRes.data?.filter(
-								(a) => a.risk_level === "high",
+								(a) =>
+									getSensitivityRisk(a.sensitivity_level) ===
+									"high",
 							).length || 0,
 						mediumRiskAssets:
 							assetsRes.data?.filter(
-								(a) => a.risk_level === "medium",
+								(a) =>
+									getSensitivityRisk(a.sensitivity_level) ===
+									"medium",
 							).length || 0,
 						lowRiskAssets:
 							assetsRes.data?.filter(
-								(a) => a.risk_level === "low",
+								(a) =>
+									getSensitivityRisk(a.sensitivity_level) ===
+									"low",
 							).length || 0,
 						totalUsers: 0,
 						totalPiiTypes: 0,
@@ -126,15 +154,21 @@ export default function Dashboard() {
 					setRiskData({
 						highRisk:
 							assetsRes.data?.filter(
-								(a) => a.risk_level === "high",
+								(a) =>
+									getSensitivityRisk(a.sensitivity_level) ===
+									"high",
 							).length || 0,
 						mediumRisk:
 							assetsRes.data?.filter(
-								(a) => a.risk_level === "medium",
+								(a) =>
+									getSensitivityRisk(a.sensitivity_level) ===
+									"medium",
 							).length || 0,
 						lowRisk:
 							assetsRes.data?.filter(
-								(a) => a.risk_level === "low",
+								(a) =>
+									getSensitivityRisk(a.sensitivity_level) ===
+									"low",
 							).length || 0,
 					});
 

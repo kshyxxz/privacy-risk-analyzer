@@ -11,6 +11,9 @@ import LandingPage from "./pages/LandingPage";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
+import Assets from "./pages/Assets";
+import Users from "./pages/Users";
+import RiskAnalysis from "./pages/RiskAnalysis";
 import PiiTypes from "./pages/PiiTypes";
 import AddPiiType from "./pages/AddPiiType";
 import EditPiiType from "./pages/EditPiiType";
@@ -39,6 +42,30 @@ function App() {
 						element={
 							<ProtectedRoute>
 								<Dashboard />
+							</ProtectedRoute>
+						}
+					/>
+					<Route
+						path="/users"
+						element={
+							<ProtectedRoute>
+								<Users />
+							</ProtectedRoute>
+						}
+					/>
+					<Route
+						path="/assets"
+						element={
+							<ProtectedRoute>
+								<Assets />
+							</ProtectedRoute>
+						}
+					/>
+					<Route
+						path="/risk-analysis"
+						element={
+							<ProtectedRoute>
+								<RiskAnalysis />
 							</ProtectedRoute>
 						}
 					/>
