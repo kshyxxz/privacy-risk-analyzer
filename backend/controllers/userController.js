@@ -1,9 +1,10 @@
 const pool = require("../config/db");
+const { logAuditEvent } = require("../services/auditLogService");
 
 exports.getUsers = async (req, res) => {
 	try {
 		const result = await pool.query(
-			"SELECT user_id, username, email FROM public.user ORDER BY user_id",
+			"SELECT u.user_id, u.username, u.email, r.role_name as role FROM users u LEFT JOIN roles r ON u.role_id = r.role_id ORDER BY u.user_id",
 		);
 
 		res.status(200).json(result.rows);
@@ -22,7 +23,7 @@ exports.getUserById = async (req, res) => {
 		}
 
 		const result = await pool.query(
-			"SELECT user_id, username, email FROM public.user WHERE user_id = $1",
+			"SELECT u.user_id, u.username, u.email, r.role_name as role FROM users u LEFT JOIN roles r ON u.role_id = r.role_id WHERE u.user_id = $1",
 			[id],
 		);
 
@@ -49,9 +50,15 @@ exports.updateUser = async (req, res) => {
 		}
 
 		await pool.query(
-			"UPDATE public.user SET username = $1, email = $2 WHERE user_id = $3",
+			"UPDATE users SET username = $1, email = $2 WHERE user_id = $3",
 			[username, email, id],
 		);
+
+		await logAuditEvent({
+			userId: req.user?.user_id,
+			assetId: null,
+			action: "UPDATE",
+		});
 
 		res.status(200).json({ message: "User updated successfully" });
 	} catch (error) {
@@ -68,7 +75,13 @@ exports.deleteUser = async (req, res) => {
 			return res.status(400).json({ error: "User ID is required" });
 		}
 
-		await pool.query("DELETE FROM public.user WHERE user_id = $1", [id]);
+		await pool.query("DELETE FROM users WHERE user_id = $1", [id]);
+
+		await logAuditEvent({
+			userId: req.user?.user_id,
+			assetId: null,
+			action: "DELETE",
+		});
 
 		res.status(200).json({ message: "User deleted successfully" });
 	} catch (error) {

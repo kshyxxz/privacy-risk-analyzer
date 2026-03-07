@@ -7,18 +7,12 @@ export default function Assets() {
 	const { user } = useContext(AuthContext);
 	const role = localStorage.getItem("role") || user?.role;
 	const isAdmin = role === "Admin";
-	
-	// Get user_id from either context or localStorage
-	const getUserId = () => {
-		if (user?.user_id) return user.user_id;
-		const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
-		return storedUser?.user_id;
-	};
 
 	const [assets, setAssets] = useState([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState("");
 	const [saving, setSaving] = useState(false);
+	const [deletingAssetId, setDeletingAssetId] = useState(null);
 	const [saveError, setSaveError] = useState("");
 	const [form, setForm] = useState({
 		asset_name: "",
@@ -63,7 +57,6 @@ export default function Assets() {
 				table_name: form.table_name.trim() || null,
 				sensitivity_level: form.sensitivity_level.trim() || null,
 				contains_pii: form.contains_pii,
-				created_by: getUserId(),
 			};
 			console.log("📤 Sending asset payload:", payload);
 			await api.post("/assets", payload);
@@ -83,6 +76,34 @@ export default function Assets() {
 			);
 		} finally {
 			setSaving(false);
+		}
+	};
+
+	const handleDeleteAsset = async (assetId) => {
+		if (!isAdmin) {
+			return;
+		}
+
+		const shouldDelete = window.confirm(
+			"Are you sure you want to delete this data asset?",
+		);
+		if (!shouldDelete) {
+			return;
+		}
+
+		try {
+			setSaveError("");
+			setDeletingAssetId(assetId);
+			await api.delete(`/assets/${assetId}`);
+			await fetchAssets();
+		} catch (err) {
+			console.error("Failed to delete asset:", err);
+			setSaveError(
+				err.response?.data?.error ||
+					"Unable to delete asset right now.",
+			);
+		} finally {
+			setDeletingAssetId(null);
 		}
 	};
 
@@ -115,18 +136,6 @@ export default function Assets() {
 						<h3 style={{ marginTop: 0, marginBottom: "12px" }}>
 							Add Data Asset
 						</h3>
-						<p
-							style={{
-								marginTop: 0,
-								marginBottom: "12px",
-								color: "#666",
-								fontSize: "13px",
-							}}
-						>
-							Form fields map to table columns: asset_name,
-							db_name, table_name, sensitivity_level,
-							contains_pii, created_by.
-						</p>
 						<form onSubmit={handleAddAsset}>
 							<div style={formGridStyle}>
 								<input
@@ -176,25 +185,30 @@ export default function Assets() {
 									<option value="">
 										Select sensitivity level
 									</option>
-									<option value="High">High</option>
-									<option value="Medium">Medium</option>
-									<option value="Low">Low</option>
-									<option value="Unknown">Unknown</option>
+									<option value="Public">Public</option>
+									<option value="Internal">Internal</option>
+									<option value="Confidential">
+										Confidential
+									</option>
+									<option value="Sensitive">Sensitive</option>
+									<option value="Highly Sensitive">
+										Highly Sensitive
+									</option>
 								</select>
+								<label style={gridCheckboxLabelStyle}>
+									<input
+										type="checkbox"
+										checked={form.contains_pii}
+										onChange={(e) =>
+											setForm((prev) => ({
+												...prev,
+												contains_pii: e.target.checked,
+											}))
+										}
+									/>
+									Contains PII
+								</label>
 							</div>
-							<label style={checkboxLabelStyle}>
-								<input
-									type="checkbox"
-									checked={form.contains_pii}
-									onChange={(e) =>
-										setForm((prev) => ({
-											...prev,
-											contains_pii: e.target.checked,
-										}))
-									}
-								/>
-								contains_pii
-							</label>
 							{saveError && (
 								<div style={inlineErrorStyle}>{saveError}</div>
 							)}
@@ -262,6 +276,9 @@ export default function Assets() {
 									</th>
 									<th style={cellHeaderStyle}>Created By</th>
 									<th style={cellHeaderStyle}>Created At</th>
+									{isAdmin && (
+										<th style={cellHeaderStyle}>Actions</th>
+									)}
 								</tr>
 							</thead>
 							<tbody>
@@ -295,6 +312,27 @@ export default function Assets() {
 													).toLocaleString()
 												: "-"}
 										</td>
+										{isAdmin && (
+											<td style={cellBodyStyle}>
+												<button
+													onClick={() =>
+														handleDeleteAsset(
+															asset.asset_id,
+														)
+													}
+													disabled={
+														deletingAssetId ===
+														asset.asset_id
+													}
+													style={deleteButtonStyle}
+												>
+													{deletingAssetId ===
+													asset.asset_id
+														? "Deleting..."
+														: "Delete"}
+												</button>
+											</td>
+										)}
 									</tr>
 								))}
 							</tbody>
@@ -340,6 +378,18 @@ const checkboxLabelStyle = {
 	color: "#333",
 };
 
+const gridCheckboxLabelStyle = {
+	display: "flex",
+	alignItems: "center",
+	gap: "8px",
+	fontSize: "14px",
+	color: "#333",
+	padding: "10px",
+	backgroundColor: "#f9f9f9",
+	borderRadius: "6px",
+	border: "1px solid #e0e0e0",
+};
+
 const buttonStyle = {
 	padding: "10px 14px",
 	backgroundColor: "#007bff",
@@ -353,4 +403,14 @@ const inlineErrorStyle = {
 	marginTop: "10px",
 	color: "#b00020",
 	fontSize: "14px",
+};
+
+const deleteButtonStyle = {
+	padding: "6px 10px",
+	backgroundColor: "#dc3545",
+	color: "white",
+	border: "none",
+	borderRadius: "6px",
+	cursor: "pointer",
+	fontSize: "13px",
 };

@@ -1,4 +1,4 @@
-import { useContext, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 import api from "../api/axiosConfig";
@@ -11,8 +11,23 @@ export default function Register() {
 	const [role, setRole] = useState("Analyst");
 	const [error, setError] = useState("");
 	const [loading, setLoading] = useState(false);
+	const [adminExists, setAdminExists] = useState(false);
 	const navigate = useNavigate();
 	const { login } = useContext(AuthContext);
+
+	useEffect(() => {
+		const checkAdminExists = async () => {
+			try {
+				const adminCheckRes = await api.get("/auth/check-admin-exists");
+				setAdminExists(adminCheckRes.data.exists);
+			} catch (err) {
+				console.error("Failed to check admin status:", err);
+				setAdminExists(false);
+			}
+		};
+
+		checkAdminExists();
+	}, []);
 
 	const handleSubmit = async (e) => {
 		e.preventDefault();
@@ -39,7 +54,7 @@ export default function Register() {
 			});
 
 			if (response.status === 201) {
-				login(response.data.user);
+				login(response.data.user, response.data.token);
 				navigate("/dashboard");
 			}
 		} catch (err) {
@@ -88,9 +103,20 @@ export default function Register() {
 						style={{ width: "100%", padding: "8px" }}
 					>
 						<option value="Analyst">Analyst</option>
-						<option value="Admin">Admin</option>
+						{!adminExists && <option value="Admin">Admin</option>}
 						<option value="Intern">Intern</option>
 					</select>
+					{adminExists && (
+						<p
+							style={{
+								fontSize: "12px",
+								color: "#666",
+								marginTop: "5px",
+							}}
+						>
+							Admin role is already assigned to another user.
+						</p>
+					)}
 				</div>
 				<div style={{ marginBottom: "15px" }}>
 					<label>Password:</label>

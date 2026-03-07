@@ -1,10 +1,29 @@
 const express = require("express");
 const router = express.Router();
 const permissionController = require("../controllers/permissionController");
+const {
+	verifyToken,
+	verifyAdminRole,
+} = require("../middleware/authMiddleware");
 
-router.get("/", permissionController.getAllPermissions);
-router.post("/", permissionController.createPermission);
-router.put("/:id", permissionController.updatePermission);
-router.delete("/:id", permissionController.deletePermission);
+router.get("/", verifyToken, permissionController.getAllPermissions);
+router.post(
+	"/",
+	verifyToken,
+	verifyAdminRole,
+	permissionController.createPermission,
+);
+router.put(
+	"/:id",
+	verifyToken,
+	verifyAdminRole,
+	permissionController.updatePermission,
+);
+router.delete(
+	"/:id",
+	verifyToken,
+	verifyAdminRole,
+	permissionController.deletePermission,
+);
 
 module.exports = router;

@@ -23,6 +23,7 @@ export default function Navbar() {
 					{ path: "/users", label: "Users" },
 					{ path: "/assets", label: "Data Assets" },
 					{ path: "/pii-types", label: "PII Types" },
+					{ path: "/assign-pii", label: "Assign PII" },
 					{ path: "/permissions", label: "Permissions" },
 					{ path: "/security-controls", label: "Security Controls" },
 					{ path: "/risk-analysis", label: "Risk Analysis" },

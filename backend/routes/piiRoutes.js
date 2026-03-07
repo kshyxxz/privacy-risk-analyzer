@@ -1,10 +1,14 @@
 const express = require("express");
 const router = express.Router();
 const piiController = require("../controllers/piiController");
+const {
+	verifyToken,
+	verifyAdminRole,
+} = require("../middleware/authMiddleware");
 
-router.get("/", piiController.getAllPii);
-router.post("/", piiController.createPii);
-router.put("/:id", piiController.updatePii);
-router.delete("/:id", piiController.deletePii);
+router.get("/", verifyToken, piiController.getAllPii);
+router.post("/", verifyToken, verifyAdminRole, piiController.createPii);
+router.put("/:id", verifyToken, verifyAdminRole, piiController.updatePii);
+router.delete("/:id", verifyToken, verifyAdminRole, piiController.deletePii);
 
 module.exports = router;

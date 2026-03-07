@@ -1,5 +1,7 @@
 const pool = require("../config/db");
 const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
+const { logAuditEvent } = require("../services/auditLogService");
 
 exports.register = async (req, res) => {
 	try {
@@ -38,13 +40,33 @@ exports.register = async (req, res) => {
 			hashedPassword.substring(0, 50) + "...",
 		);
 
-		// Get role_id (default to Analyst role)
-		let roleId = 2; // Default: Analyst
-		if (role === "Admin") {
-			roleId = 1;
-		} else if (role === "Intern") {
-			roleId = 3;
+		const selectedRole = role || "Analyst";
+
+		// Check if trying to create an Admin when one already exists
+		if (selectedRole === "Admin") {
+			const adminCheckResult = await pool.query(
+				"SELECT user_id FROM users u JOIN roles r ON u.role_id = r.role_id WHERE r.role_name = 'Admin' LIMIT 1",
+			);
+
+			if (adminCheckResult.rows.length > 0) {
+				return res.status(403).json({
+					error: "An admin user already exists. Only one admin account is allowed.",
+				});
+			}
 		}
+
+		const roleResult = await pool.query(
+			"SELECT role_id, role_name FROM roles WHERE role_name = $1",
+			[selectedRole],
+		);
+
+		if (roleResult.rows.length === 0) {
+			return res.status(400).json({
+				error: "Invalid role. Available roles are Admin, Analyst, Intern.",
+			});
+		}
+
+		const roleId = roleResult.rows[0].role_id;
 
 		console.log("   Role ID:", roleId);
 
@@ -55,7 +77,7 @@ exports.register = async (req, res) => {
 		);
 
 		const user = result.rows[0];
-		const roleMap = { 1: "Admin", 2: "Analyst", 3: "Intern" };
+		const roleName = roleResult.rows[0].role_name;
 
 		console.log("   ✅ User created with ID:", user.user_id);
 		console.log("   ✅ Checking stored hash...");
@@ -70,13 +92,31 @@ exports.register = async (req, res) => {
 			storedUser.rows[0].password_hash.substring(0, 50) + "...",
 		);
 
+		await logAuditEvent({
+			userId: user.user_id,
+			assetId: null,
+			action: "WRITE",
+		});
+
+		const token = jwt.sign(
+			{
+				user_id: user.user_id,
+				username: user.username,
+				email: user.email,
+				role: roleName,
+			},
+			process.env.JWT_SECRET,
+			{ expiresIn: process.env.JWT_EXPIRY || "7d" },
+		);
+
 		res.status(201).json({
 			message: "User registered successfully",
+			token,
 			user: {
 				user_id: user.user_id,
 				username: user.username,
 				email: user.email,
-				role: roleMap[user.role_id],
+				role: roleName,
 			},
 		});
 	} catch (error) {
@@ -118,7 +158,10 @@ exports.login = async (req, res) => {
 
 		// Find user by username
 		const result = await pool.query(
-			"SELECT * FROM users WHERE username = $1",
+			`SELECT u.user_id, u.username, u.email, u.password_hash, r.role_name
+			 FROM users u
+			 LEFT JOIN roles r ON u.role_id = r.role_id
+			 WHERE u.username = $1`,
 			[username],
 		);
 
@@ -142,15 +185,28 @@ exports.login = async (req, res) => {
 				.json({ error: "Invalid username or password" });
 		}
 
-		const roleMap = { 1: "Admin", 2: "Analyst", 3: "Intern" };
+		const roleName = user.role_name || "Analyst";
+
+		// Generate JWT token
+		const token = jwt.sign(
+			{
+				user_id: user.user_id,
+				username: user.username,
+				email: user.email,
+				role: roleName,
+			},
+			process.env.JWT_SECRET,
+			{ expiresIn: process.env.JWT_EXPIRY || "7d" },
+		);
 
 		res.status(200).json({
 			message: "Login successful",
+			token,
 			user: {
 				user_id: user.user_id,
 				username: user.username,
 				email: user.email,
-				role: roleMap[user.role_id] || "Analyst",
+				role: roleName,
 			},
 		});
 	} catch (error) {
@@ -165,5 +221,20 @@ exports.logout = async (req, res) => {
 	} catch (error) {
 		console.error("Logout error:", error);
 		res.status(500).json({ error: "Failed to logout" });
+	}
+};
+
+exports.checkAdminExists = async (req, res) => {
+	try {
+		const result = await pool.query(
+			"SELECT user_id FROM users u JOIN roles r ON u.role_id = r.role_id WHERE r.role_name = 'Admin' LIMIT 1",
+		);
+
+		res.status(200).json({
+			exists: result.rows.length > 0,
+		});
+	} catch (error) {
+		console.error("Error checking admin existence:", error);
+		res.status(500).json({ error: "Failed to check admin status" });
 	}
 };

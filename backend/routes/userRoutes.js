@@ -6,10 +6,14 @@ const {
 	updateUser,
 	deleteUser,
 } = require("../controllers/userController");
+const {
+	verifyToken,
+	verifyAdminRole,
+} = require("../middleware/authMiddleware");
 
-router.get("/", getUsers);
-router.get("/:id", getUserById);
-router.put("/:id", updateUser);
-router.delete("/:id", deleteUser);
+router.get("/", verifyToken, getUsers);
+router.get("/:id", verifyToken, getUserById);
+router.put("/:id", verifyToken, updateUser);
+router.delete("/:id", verifyToken, verifyAdminRole, deleteUser);
 
 module.exports = router;

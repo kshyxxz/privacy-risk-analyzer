@@ -1,5 +1,5 @@
 -- 1. ROLE TABLE
-CREATE TABLE role (
+CREATE TABLE roles (
     role_id SERIAL PRIMARY KEY,
     role_name VARCHAR(50) NOT NULL UNIQUE,
     description TEXT
@@ -17,13 +17,13 @@ CREATE TABLE users (
     
     CONSTRAINT fk_user_role
         FOREIGN KEY (role_id)
-        REFERENCES role(role_id)
+        REFERENCES roles(role_id)
         ON DELETE SET NULL
 );
 
 
 -- 3. DATA ASSET TABLE
-CREATE TABLE data_asset (
+CREATE TABLE data_assets (
     asset_id SERIAL PRIMARY KEY,
     asset_name VARCHAR(100) NOT NULL,
     db_name VARCHAR(100),
@@ -40,8 +40,8 @@ CREATE TABLE data_asset (
 );
 
 
--- 4. PII TYPE TABLE
-CREATE TABLE pii_type (
+-- 4. PII TYPE TABLE~~~~~~~~~~
+CREATE TABLE pii_types (
     pii_id SERIAL PRIMARY KEY,
     pii_name VARCHAR(100) NOT NULL,
     pii_category VARCHAR(100),
@@ -49,7 +49,7 @@ CREATE TABLE pii_type (
 );
 
 
--- 5. ASSET – PII MAPPING TABLE
+-- 5. ASSET – PII MAPPING TABLE~~~~~~~~~~ 
 CREATE TABLE asset_pii_mapping (
     mapping_id SERIAL PRIMARY KEY,
     asset_id INT NOT NULL,
@@ -58,18 +58,21 @@ CREATE TABLE asset_pii_mapping (
     
     CONSTRAINT fk_mapping_asset
         FOREIGN KEY (asset_id)
-        REFERENCES data_asset(asset_id)
+        REFERENCES data_assets(asset_id)
         ON DELETE CASCADE,
         
     CONSTRAINT fk_mapping_pii
         FOREIGN KEY (pii_id)
-        REFERENCES pii_type(pii_id)
-        ON DELETE CASCADE
+        REFERENCES pii_types(pii_id)
+        ON DELETE CASCADE,
+    
+    CONSTRAINT uk_asset_pii_mapping
+        UNIQUE (asset_id, pii_id)
 );
 
 
 -- 6. ACCESS PERMISSION TABLE
-CREATE TABLE access_permission (
+CREATE TABLE access_permissions (
     permission_id SERIAL PRIMARY KEY,
     asset_id INT NOT NULL,
     role_id INT NOT NULL,
@@ -77,33 +80,34 @@ CREATE TABLE access_permission (
     
     CONSTRAINT fk_permission_asset
         FOREIGN KEY (asset_id)
-        REFERENCES data_asset(asset_id)
+        REFERENCES data_assets(asset_id)
         ON DELETE CASCADE,
         
     CONSTRAINT fk_permission_role
         FOREIGN KEY (role_id)
-        REFERENCES role(role_id)
+        REFERENCES roles(role_id)
         ON DELETE CASCADE
 );
 
 
 -- 7. SECURITY CONTROL TABLE
-CREATE TABLE security_control (
+CREATE TABLE security_controls (
     control_id SERIAL PRIMARY KEY,
     asset_id INT UNIQUE,
     encryption BOOLEAN DEFAULT FALSE,
     masking BOOLEAN DEFAULT FALSE,
     hashing BOOLEAN DEFAULT FALSE,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
     CONSTRAINT fk_control_asset
         FOREIGN KEY (asset_id)
-        REFERENCES data_asset(asset_id)
+        REFERENCES data_assets(asset_id)
         ON DELETE CASCADE
 );
 
 
 -- 8. AUDIT LOG TABLE
-CREATE TABLE audit_log (
+CREATE TABLE audit_logs (
     log_id SERIAL PRIMARY KEY,
     user_id INT,
     asset_id INT,
@@ -117,7 +121,7 @@ CREATE TABLE audit_log (
         
     CONSTRAINT fk_log_asset
         FOREIGN KEY (asset_id)
-        REFERENCES data_asset(asset_id)
+        REFERENCES data_assets(asset_id)
         ON DELETE SET NULL
 );
 
@@ -132,6 +136,6 @@ CREATE TABLE risk_assessment (
     
     CONSTRAINT fk_risk_asset
         FOREIGN KEY (asset_id)
-        REFERENCES data_asset(asset_id)
+        REFERENCES data_assets(asset_id)
         ON DELETE CASCADE
 );

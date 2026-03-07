@@ -1,4 +1,5 @@
 const pool = require("../config/db");
+const { logAuditEvent } = require("../services/auditLogService");
 
 exports.getAllPermissions = async (req, res) => {
 	try {
@@ -7,9 +8,9 @@ exports.getAllPermissions = async (req, res) => {
            r.role_name,
            d.asset_name,
            ap.access_type
-    FROM access_permission ap
-    JOIN role r ON ap.role_id = r.role_id
-    JOIN data_asset d ON ap.asset_id = d.asset_id
+    FROM access_permissions ap
+    JOIN roles r ON ap.role_id = r.role_id
+    JOIN data_assets d ON ap.asset_id = d.asset_id
     ORDER BY ap.permission_id
   `);
 
@@ -30,11 +31,50 @@ exports.createPermission = async (req, res) => {
 			});
 		}
 
-		const result = await pool.query(
-			`INSERT INTO access_permission (role_id, asset_id, access_type)
-     VALUES ($1,$2,$3) RETURNING *`,
-			[role_id, asset_id, access_type],
+		const normalizedAccessType = String(access_type).toUpperCase();
+		if (!["READ", "WRITE", "UPDATE"].includes(normalizedAccessType)) {
+			return res.status(400).json({
+				error: "access_type must be one of READ, WRITE, UPDATE",
+			});
+		}
+
+		const existing = await pool.query(
+			"SELECT permission_id FROM access_permissions WHERE role_id = $1 AND asset_id = $2",
+			[role_id, asset_id],
 		);
+
+		if (existing.rows.length > 0) {
+			const updateResult = await pool.query(
+				`UPDATE access_permissions
+				 SET access_type = $1
+				 WHERE permission_id = $2
+				 RETURNING *`,
+				[normalizedAccessType, existing.rows[0].permission_id],
+			);
+
+			await logAuditEvent({
+				userId: req.user?.user_id,
+				assetId: Number(asset_id),
+				action: "UPDATE",
+			});
+
+			return res.status(200).json({
+				message: "Permission updated for this role and asset",
+				permission: updateResult.rows[0],
+			});
+		}
+
+		const result = await pool.query(
+			`INSERT INTO access_permissions (role_id, asset_id, access_type)
+     VALUES ($1,$2,$3) RETURNING *`,
+			[role_id, asset_id, normalizedAccessType],
+		);
+
+		await logAuditEvent({
+			userId: req.user?.user_id,
+			assetId: Number(asset_id),
+			action: "WRITE",
+		});
 
 		res.status(201).json(result.rows[0]);
 	} catch (error) {
@@ -55,11 +95,17 @@ exports.updatePermission = async (req, res) => {
 		}
 
 		await pool.query(
-			`UPDATE access_permission
+			`UPDATE access_permissions
      SET role_id=$1, asset_id=$2, access_type=$3
      WHERE permission_id=$4`,
 			[role_id, asset_id, access_type, id],
 		);
+
+		await logAuditEvent({
+			userId: req.user?.user_id,
+			assetId: Number(asset_id),
+			action: "UPDATE",
+		});
 
 		res.status(200).json({ message: "Permission updated successfully" });
 	} catch (error) {
@@ -76,10 +122,20 @@ exports.deletePermission = async (req, res) => {
 			return res.status(400).json({ error: "Permission ID is required" });
 		}
 
-		await pool.query(
-			"DELETE FROM access_permission WHERE permission_id=$1",
+		const deleted = await pool.query(
+			"DELETE FROM access_permissions WHERE permission_id=$1 RETURNING asset_id",
 			[id],
 		);
+
+		if (deleted.rows.length === 0) {
+			return res.status(404).json({ error: "Permission not found" });
+		}
+
+		await logAuditEvent({
+			userId: req.user?.user_id,
+			assetId: deleted.rows[0].asset_id || null,
+			action: "DELETE",
+		});
 
 		res.status(200).json({ message: "Permission deleted successfully" });
 	} catch (error) {

@@ -7,16 +7,6 @@ import RiskChart from "../components/dashboard/RiskChart";
 import RecentActivity from "../components/dashboard/RecentActivity";
 import api from "../api/axiosConfig";
 
-// Helper: map sensitivity_level to risk category
-const getSensitivityRisk = (sensitivityLevel) => {
-	if (!sensitivityLevel) return null;
-	const level = sensitivityLevel.toLowerCase();
-	if (level === "high") return "high";
-	if (level === "medium") return "medium";
-	if (level === "low") return "low";
-	return null;
-};
-
 export default function Dashboard() {
 	const { user } = useContext(AuthContext);
 	const navigate = useNavigate();
@@ -48,13 +38,13 @@ export default function Dashboard() {
 				// Fetch data based on role
 				if (role === "Admin") {
 					// Admin can access all data
-					const [usersRes, assetsRes, piiRes, auditRes] =
+					const [usersRes, riskRes, piiRes, auditRes] =
 						await Promise.all([
 							api
 								.get("/users")
 								.catch(() => ({ data: [], status: 200 })),
 							api
-								.get("/assets")
+								.get("/risk/all")
 								.catch(() => ({ data: [], status: 200 })),
 							api
 								.get("/pii")
@@ -64,49 +54,29 @@ export default function Dashboard() {
 								.catch(() => ({ data: [], status: 200 })),
 						]);
 
+					const highRiskCount =
+						riskRes.data?.filter((a) => a.riskLevel === "HIGH")
+							.length || 0;
+					const mediumRiskCount =
+						riskRes.data?.filter((a) => a.riskLevel === "MEDIUM")
+							.length || 0;
+					const lowRiskCount =
+						riskRes.data?.filter((a) => a.riskLevel === "LOW")
+							.length || 0;
+
 					setStats({
 						totalUsers: usersRes.data?.length || 0,
-						totalAssets: assetsRes.data?.length || 0,
+						totalAssets: riskRes.data?.length || 0,
 						totalPiiTypes: piiRes.data?.length || 0,
-						highRiskAssets:
-							assetsRes.data?.filter(
-								(a) =>
-									getSensitivityRisk(a.sensitivity_level) ===
-									"high",
-							).length || 0,
-						mediumRiskAssets:
-							assetsRes.data?.filter(
-								(a) =>
-									getSensitivityRisk(a.sensitivity_level) ===
-									"medium",
-							).length || 0,
-						lowRiskAssets:
-							assetsRes.data?.filter(
-								(a) =>
-									getSensitivityRisk(a.sensitivity_level) ===
-									"low",
-							).length || 0,
+						highRiskAssets: highRiskCount,
+						mediumRiskAssets: mediumRiskCount,
+						lowRiskAssets: lowRiskCount,
 					});
 
 					setRiskData({
-						highRisk:
-							assetsRes.data?.filter(
-								(a) =>
-									getSensitivityRisk(a.sensitivity_level) ===
-									"high",
-							).length || 0,
-						mediumRisk:
-							assetsRes.data?.filter(
-								(a) =>
-									getSensitivityRisk(a.sensitivity_level) ===
-									"medium",
-							).length || 0,
-						lowRisk:
-							assetsRes.data?.filter(
-								(a) =>
-									getSensitivityRisk(a.sensitivity_level) ===
-									"low",
-							).length || 0,
+						highRisk: highRiskCount,
+						mediumRisk: mediumRiskCount,
+						lowRisk: lowRiskCount,
 					});
 
 					setActivities(
@@ -118,58 +88,38 @@ export default function Dashboard() {
 					);
 				} else if (role === "Analyst") {
 					// Analyst can access assets and risk data
-					const [assetsRes, auditRes] = await Promise.all([
+					const [riskRes, auditRes] = await Promise.all([
 						api
-							.get("/assets")
+							.get("/risk/all")
 							.catch(() => ({ data: [], status: 200 })),
 						api
 							.get("/audit")
 							.catch(() => ({ data: [], status: 200 })),
 					]);
 
+					const highRiskCount =
+						riskRes.data?.filter((a) => a.riskLevel === "HIGH")
+							.length || 0;
+					const mediumRiskCount =
+						riskRes.data?.filter((a) => a.riskLevel === "MEDIUM")
+							.length || 0;
+					const lowRiskCount =
+						riskRes.data?.filter((a) => a.riskLevel === "LOW")
+							.length || 0;
+
 					setStats({
-						totalAssets: assetsRes.data?.length || 0,
-						highRiskAssets:
-							assetsRes.data?.filter(
-								(a) =>
-									getSensitivityRisk(a.sensitivity_level) ===
-									"high",
-							).length || 0,
-						mediumRiskAssets:
-							assetsRes.data?.filter(
-								(a) =>
-									getSensitivityRisk(a.sensitivity_level) ===
-									"medium",
-							).length || 0,
-						lowRiskAssets:
-							assetsRes.data?.filter(
-								(a) =>
-									getSensitivityRisk(a.sensitivity_level) ===
-									"low",
-							).length || 0,
+						totalAssets: riskRes.data?.length || 0,
+						highRiskAssets: highRiskCount,
+						mediumRiskAssets: mediumRiskCount,
+						lowRiskAssets: lowRiskCount,
 						totalUsers: 0,
 						totalPiiTypes: 0,
 					});
 
 					setRiskData({
-						highRisk:
-							assetsRes.data?.filter(
-								(a) =>
-									getSensitivityRisk(a.sensitivity_level) ===
-									"high",
-							).length || 0,
-						mediumRisk:
-							assetsRes.data?.filter(
-								(a) =>
-									getSensitivityRisk(a.sensitivity_level) ===
-									"medium",
-							).length || 0,
-						lowRisk:
-							assetsRes.data?.filter(
-								(a) =>
-									getSensitivityRisk(a.sensitivity_level) ===
-									"low",
-							).length || 0,
+						highRisk: highRiskCount,
+						mediumRisk: mediumRiskCount,
+						lowRisk: lowRiskCount,
 					});
 
 					setActivities(

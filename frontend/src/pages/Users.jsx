@@ -82,6 +82,7 @@ export default function Users() {
 									<th style={cellHeaderStyle}>User ID</th>
 									<th style={cellHeaderStyle}>Username</th>
 									<th style={cellHeaderStyle}>Email</th>
+									<th style={cellHeaderStyle}>Role</th>
 								</tr>
 							</thead>
 							<tbody>
@@ -95,6 +96,9 @@ export default function Users() {
 										</td>
 										<td style={cellBodyStyle}>
 											{entry.email || "-"}
+										</td>
+										<td style={cellBodyStyle}>
+											{entry.role || "-"}
 										</td>
 									</tr>
 								))}

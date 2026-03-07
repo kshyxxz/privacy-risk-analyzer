@@ -1,18 +1,8 @@
 import { useContext } from "react";
-import { useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 
 export default function LandingPage() {
 	const { user } = useContext(AuthContext);
-	const navigate = useNavigate();
-
-	const handleGetStarted = () => {
-		if (user) {
-			navigate("/dashboard");
-		} else {
-			navigate("/login");
-		}
-	};
 
 	return (
 		<div
@@ -63,26 +53,12 @@ export default function LandingPage() {
 						marginBottom: "40px",
 					}}
 				>
-					<button
-						onClick={handleGetStarted}
-						style={{
-							padding: "12px 30px",
-							fontSize: "16px",
-							backgroundColor: "#007bff",
-							color: "white",
-							border: "none",
-							borderRadius: "5px",
-							cursor: "pointer",
-						}}
-					>
-						{user ? "Go to Dashboard" : "Get Started"}
-					</button>
 					<a
 						href="/login"
 						style={{
 							padding: "12px 30px",
 							fontSize: "16px",
-							backgroundColor: "#6c757d",
+							backgroundColor: "#007bff",
 							color: "white",
 							border: "none",
 							borderRadius: "5px",
