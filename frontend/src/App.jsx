@@ -1,35 +1,151 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import {
+	BrowserRouter as Router,
+	Routes,
+	Route,
+	Navigate,
+} from "react-router-dom";
+
+import { AuthProvider } from "./context/AuthContext";
+
+import LandingPage from "./pages/LandingPage";
+import Login from "./pages/Login";
+import Register from "./pages/Register";
+import Dashboard from "./pages/Dashboard";
+import Assets from "./pages/Assets";
+import Users from "./pages/Users";
+import RiskAnalysis from "./pages/RiskAnalysis";
+import PiiTypes from "./pages/PiiTypes";
+import AddPiiType from "./pages/AddPiiType";
+import EditPiiType from "./pages/EditPiiType";
+
+import Permissions from "./pages/Permissions";
+import AddPermission from "./pages/AddPermission";
+import EditPermission from "./pages/EditPermission";
+
+import AssignPiiToAsset from "./pages/AssignPiiToAsset";
+
+import AuditLogs from "./pages/audit/AuditLogs";
+import SecurityControl from "./pages/security/SecurityControl";
+
+import ProtectedRoute from "./components/ProtectedRoute";
 
 function App() {
-  const [count, setCount] = useState(0)
-
-  return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.jsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
+	return (
+		<AuthProvider>
+			<Router>
+				<Routes>
+					<Route path="/" element={<LandingPage />} />
+					<Route path="/login" element={<Login />} />
+					<Route path="/register" element={<Register />} />
+					<Route
+						path="/dashboard"
+						element={
+							<ProtectedRoute>
+								<Dashboard />
+							</ProtectedRoute>
+						}
+					/>
+					<Route
+						path="/users"
+						element={
+							<ProtectedRoute>
+								<Users />
+							</ProtectedRoute>
+						}
+					/>
+					<Route
+						path="/assets"
+						element={
+							<ProtectedRoute>
+								<Assets />
+							</ProtectedRoute>
+						}
+					/>
+					<Route
+						path="/risk-analysis"
+						element={
+							<ProtectedRoute>
+								<RiskAnalysis />
+							</ProtectedRoute>
+						}
+					/>
+					<Route
+						path="/pii-types"
+						element={
+							<ProtectedRoute>
+								<PiiTypes />
+							</ProtectedRoute>
+						}
+					/>
+					<Route
+						path="/pii-types/add"
+						element={
+							<ProtectedRoute>
+								<AddPiiType />
+							</ProtectedRoute>
+						}
+					/>
+					<Route
+						path="/pii-types/edit/:id"
+						element={
+							<ProtectedRoute>
+								<EditPiiType />
+							</ProtectedRoute>
+						}
+					/>
+					<Route
+						path="/permissions"
+						element={
+							<ProtectedRoute>
+								<Permissions />
+							</ProtectedRoute>
+						}
+					/>
+					<Route
+						path="/permissions/add"
+						element={
+							<ProtectedRoute>
+								<AddPermission />
+							</ProtectedRoute>
+						}
+					/>
+					<Route
+						path="/permissions/edit/:id"
+						element={
+							<ProtectedRoute>
+								<EditPermission />
+							</ProtectedRoute>
+						}
+					/>
+					<Route
+						path="/assign-pii"
+						element={
+							<ProtectedRoute>
+								<AssignPiiToAsset />
+							</ProtectedRoute>
+						}
+					/>
+					<Route
+						path="/audit-logs"
+						element={
+							<ProtectedRoute>
+								<AuditLogs />
+							</ProtectedRoute>
+						}
+					/>
+					<Route
+						path="/security-controls"
+						element={
+							<ProtectedRoute>
+								<SecurityControl />
+							</ProtectedRoute>
+						}
+					/>
+					<Route path="*" element={<Navigate to="/" />} />
+				</Routes>
+			</Router>
+		</AuthProvider>
+	);
 }
 
-export default App
+export default App;

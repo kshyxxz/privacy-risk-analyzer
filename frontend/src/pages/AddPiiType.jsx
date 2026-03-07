@@ -1,5 +1,5 @@
 import { useState } from "react";
-import API from "../api";
+import API from "../api/axiosConfig";
 
 export default function AddPiiTypes() {
 	const [form, setForm] = useState({
