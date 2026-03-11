@@ -1,10 +1,11 @@
 import { useContext } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useLocation } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 
 export default function Navbar() {
 	const { user, logout } = useContext(AuthContext);
 	const navigate = useNavigate();
+	const location = useLocation();
 	const role = localStorage.getItem("role") || user?.role;
 
 	const handleLogout = () => {
@@ -48,16 +49,26 @@ export default function Navbar() {
 	return (
 		<nav
 			style={{
-				backgroundColor: "#333",
+				backgroundColor: "#2c3e50",
 				color: "white",
-				padding: "0 20px",
+				padding: "0 30px",
 				display: "flex",
 				justifyContent: "space-between",
 				alignItems: "center",
-				boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
+				boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+				fontFamily: '"IBM Plex Sans", sans-serif',
+				position: "sticky",
+				top: 0,
+				zIndex: 1000,
 			}}
 		>
-			<div style={{ fontSize: "20px", fontWeight: "bold" }}>
+			<div
+				style={{
+					fontSize: "18px",
+					fontWeight: "600",
+					letterSpacing: "0.5px",
+				}}
+			>
 				Privacy Risk Analyzer
 			</div>
 
@@ -67,35 +78,50 @@ export default function Navbar() {
 					listStyle: "none",
 					margin: 0,
 					padding: 0,
-					gap: "20px",
+					gap: "5px",
 					flex: 1,
 					justifyContent: "center",
 				}}
 			>
-				{navItems.map((item) => (
-					<li key={item.path}>
-						<Link
-							to={item.path}
-							style={{
-								color: "white",
-								textDecoration: "none",
-								padding: "10px 15px",
-								borderRadius: "4px",
-								transition: "background-color 0.2s",
-							}}
-							onMouseEnter={(e) =>
-								(e.currentTarget.style.backgroundColor =
-									"rgba(255,255,255,0.1)")
-							}
-							onMouseLeave={(e) =>
-								(e.currentTarget.style.backgroundColor =
-									"transparent")
-							}
-						>
-							{item.label}
-						</Link>
-					</li>
-				))}
+				{navItems.map((item) => {
+					const isActive = location.pathname === item.path;
+					return (
+						<li key={item.path}>
+							<Link
+								to={item.path}
+								style={{
+									color: "white",
+									textDecoration: "none",
+									padding: "12px 16px",
+									borderRadius: "4px",
+									transition: "background-color 0.2s ease",
+									display: "block",
+									fontSize: "14px",
+									backgroundColor: isActive
+										? "rgba(255,255,255,0.15)"
+										: "transparent",
+									borderBottom: isActive
+										? "2px solid #3498db"
+										: "2px solid transparent",
+								}}
+								onMouseEnter={(e) => {
+									if (!isActive) {
+										e.currentTarget.style.backgroundColor =
+											"rgba(255,255,255,0.1)";
+									}
+								}}
+								onMouseLeave={(e) => {
+									if (!isActive) {
+										e.currentTarget.style.backgroundColor =
+											"transparent";
+									}
+								}}
+							>
+								{item.label}
+							</Link>
+						</li>
+					);
+				})}
 			</ul>
 
 			<div
@@ -105,26 +131,27 @@ export default function Navbar() {
 					gap: "15px",
 				}}
 			>
-				<span style={{ fontSize: "14px" }}>
+				<span style={{ fontSize: "14px", opacity: 0.9 }}>
 					{user?.username} ({role})
 				</span>
 				<button
 					onClick={handleLogout}
 					style={{
 						padding: "8px 16px",
-						backgroundColor: "#dc3545",
+						backgroundColor: "#e74c3c",
 						color: "white",
 						border: "none",
 						borderRadius: "4px",
 						cursor: "pointer",
-						transition: "background-color 0.2s",
+						fontSize: "14px",
+						transition: "background-color 0.2s ease",
 					}}
-					onMouseEnter={(e) =>
-						(e.currentTarget.style.backgroundColor = "#c82333")
-					}
-					onMouseLeave={(e) =>
-						(e.currentTarget.style.backgroundColor = "#dc3545")
-					}
+					onMouseEnter={(e) => {
+						e.currentTarget.style.backgroundColor = "#c0392b";
+					}}
+					onMouseLeave={(e) => {
+						e.currentTarget.style.backgroundColor = "#e74c3c";
+					}}
 				>
 					Logout
 				</button>

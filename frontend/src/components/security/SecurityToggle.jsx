@@ -2,8 +2,17 @@ import React from "react";
 
 const SecurityToggle = ({ label, value, onChange }) => {
 	return (
-		<div className="toggle-container">
-			<label>{label}</label>
+		<div
+			className="toggle-container"
+			style={{
+				display: "flex",
+				alignItems: "center",
+				justifyContent: "flex-start",
+				gap: "6px",
+				width: "fit-content",
+			}}
+		>
+			<label style={{ marginRight: 0 }}>{label}</label>
 			<label className="switch">
 				<input
 					type="checkbox"

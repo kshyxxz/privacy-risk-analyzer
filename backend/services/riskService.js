@@ -1,119 +1,63 @@
 const pool = require("../config/db");
 
-/**
- * ============================================================================
- * PRIVACY RISK ANALYZER - COMPREHENSIVE RISK ENGINE
- * ============================================================================
- *
- * This service implements a multi-factor risk assessment engine for data assets.
- * Risk scores are calculated on a 0-150 scale and normalized to 0-100%.
- *
- * RISK CALCULATION FORMULA:
- * -------------------------
- * Base Risk = Sensitivity Level (0-10) + PII Exposure (0-100+bonuses)
- * + Permission Risk (15% contribution)
- * + Audit Activity (15% contribution)
- * - Security Controls (15% reduction)
- *
- * FINAL SCORE RANGE: 0-150 points → Normalized to 0-100%
- *
- * RISK LEVELS:
- * - LOW:    0-40 points   (minimal risk)
- * - MEDIUM: 41-100 points (moderate risk)
- * - HIGH:   101-150 points (critical risk)
- *
- * ============================================================================
- */
-
-/**
- * Sensitivity Level to Risk Score Mapping
- * Used to convert asset sensitivity levels into numeric risk scores
- * Supports both new classification system and legacy values for backward compatibility
- */
 const SENSITIVITY_LEVEL_MAPPING = {
-	// New classification system
-	Public: 1,
-	Internal: 3,
-	Confidential: 6,
-	Sensitive: 8,
-	"Highly Sensitive": 10,
+	Public: 0.2,
+	Internal: 0.4,
+	Confidential: 0.6,
+	Restricted: 0.8,
+	"Top Secret": 1.0,
 
-	// Legacy values (backward compatibility)
-	Low: 1,
-	Medium: 5,
-	High: 9,
+	// Backward compatibility aliases
+	Sensitive: 0.8,
+	"Highly Sensitive": 1.0,
+	Low: 0.2,
+	Medium: 0.6,
+	High: 0.8,
 	Unknown: 0,
 };
 
 /**
- * Permission Access Type to Risk Score Mapping
- * Used to convert permission access types into numeric risk scores
- * Permissions contribute 15% of the total risk score
+ * Permission access mapping used to compute Permission%.
  */
 const PERMISSION_RISK_MAPPING = {
-	READ: 2, // Read Only
-	WRITE: 5, // Read + Write
-	UPDATE: 5, // Read + Write (same as WRITE)
-	ADMIN: 8, // Admin Access
-	PUBLIC: 10, // Public Access/API
+	READ: 1,
+	WRITE: 2,
+	UPDATE: 3,
+	DELETE: 4,
 };
 
 /**
- * Security Control Values
- * Security controls reduce risk by 15% of the total risk score
+ * Security control reduction values used to compute Security%.
  */
 const SECURITY_CONTROL_VALUES = {
-	encryption: 4,
-	hashing: 3,
-	masking: 1, // Treated as encoding
+	encryption: 0.5,
+	hashing: 0.33,
+	masking: 0.17, // Encoding-equivalent control
 };
 
 /**
- * Calculate Audit Activity Score based on log count
- * Audit activity contributes 15% of the total risk score
- * @param {number} logCount - Number of audit logs for the asset
- * @returns {number} - Score from 1 to 10
+ * Normalize raw audit log count to 0-1 scale.
  */
-function calculateAuditActivityScore(logCount) {
-	if (logCount >= 500) return 10;
-	if (logCount >= 100) return 7;
-	if (logCount >= 50) return 5;
-	if (logCount >= 10) return 3;
-	return 1; // 0-10 logs
+function normalizeAuditPercent(logCount) {
+	return Math.min(Math.max(logCount, 0), 1000) / 1000;
 }
 
 /**
- * COMPREHENSIVE RISK ENGINE
+ * DYNAMIC RISK ENGINE
  *
  * Calculates risk score for a data asset based on multiple factors:
  *
- * 1. SENSITIVITY LEVEL (0-10 points)
- *    - Asset's inherent sensitivity classification
- *    - Mapping: Public(1), Internal(3), Confidential(6), Sensitive(8), Highly Sensitive(10)
+ * 1. Compute Final_Score from weighted factors and security reduction
+ * 2. Compute Max_Score as asset-specific ceiling excluding security reduction
+ * 3. Resolve label from fixed % bands of Max_Score
  *
- * 2. PII EXPOSURE (0-100 points base + bonuses)
- *    - Base: Sum of normalized PII weights (each capped at 10)
- *    - Bonus for PII count: 2-3 types(+5), 4-5 types(+15), 6+ types(+30)
- *    - Critical PII bonus: +10 per PII type with weight ≥30 (before normalization)
- *
- * 3. PERMISSION RISK (+15% of total)
- *    - Average permission score across all roles with access
- *    - Mapping: READ(2), WRITE/UPDATE(5), ADMIN(8), PUBLIC(10)
- *
- * 4. AUDIT ACTIVITY (+15% of total)
- *    - Frequency of access/modifications indicates exposure
- *    - Mapping: 0-10 logs(1), 10-50(3), 50-100(5), 100-500(7), 500+(10)
- *
- * 5. SECURITY CONTROLS (-15% of total)
- *    - Protective measures reduce risk
- *    - Encryption(4) + Hashing(3) + Masking(1), capped at 6
- *
- * FINAL SCORE: 0-150 scale, normalized to 0-100%
- *
- * RISK LEVELS:
- * - LOW: 0-40 points (minimal risk)
- * - MEDIUM: 41-100 points (moderate risk)
- * - HIGH: 101-150 points (critical risk)
+ * RISK LEVELS (based on normalized % of ceiling):
+ * - MINIMAL: 0% - 5%
+ * - LOW: >5% - 20%
+ * - MODERATE: >20% - 40%
+ * - HIGH: >40% - 65%
+ * - CRITICAL: >65% - 85%
+ * - EXTREME: >85% - 100%
  */
 async function calculateAssetRisk(assetId) {
 	try {
@@ -121,7 +65,7 @@ async function calculateAssetRisk(assetId) {
 		// STEP 1: Fetch Asset Data and Sensitivity Level
 		// ===========================================
 		const assetQuery = `
-			SELECT asset_name, sensitivity_level
+			SELECT asset_name, sensitivity_level, contains_pii
 			FROM data_assets
 			WHERE asset_id = $1
 		`;
@@ -134,59 +78,40 @@ async function calculateAssetRisk(assetId) {
 
 		const assetName = assetData.asset_name;
 		const sensitivityLevel = assetData.sensitivity_level;
-		const sensitivityScore =
+		const containsPii = Boolean(assetData.contains_pii);
+		const sensitivityPercent =
 			SENSITIVITY_LEVEL_MAPPING[sensitivityLevel] || 0;
 
 		// ===========================================
 		// STEP 2: Calculate PII Exposure Risk
 		// ===========================================
-		// Get all PII types assigned to this asset with their weights
-		// Normalize each PII weight to max of 10 before calculation
+		// Get all PII types assigned to this asset with their full weights
 		const piiQuery = `
 			SELECT
-				COUNT(DISTINCT apm.pii_id) as pii_count,
-				COALESCE(SUM(LEAST(pt.pii_weight, 10)), 0) as total_weight,
+				COUNT(apm.pii_id) as pii_count,
+				COALESCE(SUM(pt.pii_weight), 0) as total_weight,
 				ARRAY_AGG(DISTINCT pt.pii_category) as pii_categories,
-				MAX(LEAST(pt.pii_weight, 10)) as max_weight,
-				COUNT(DISTINCT apm.pii_id) FILTER (WHERE pt.pii_weight >= 30) as critical_pii_count
-			FROM asset_pii_mapping apm
+				MAX(pt.pii_weight) as max_weight,
+				COUNT(apm.pii_id) FILTER (WHERE pt.pii_weight >= 70) as critical_pii_count
+			FROM (
+				SELECT DISTINCT pii_id
+				FROM asset_pii_mapping
+				WHERE asset_id = $1
+			) apm
 			LEFT JOIN pii_types pt ON apm.pii_id = pt.pii_id
-			WHERE apm.asset_id = $1
 		`;
-
-		const piiResult = await pool.query(piiQuery, [assetId]);
-		const piiRow = piiResult.rows[0];
-
-		const piiCount = parseInt(piiRow.pii_count) || 0;
-		const totalPiiWeight = parseInt(piiRow.total_weight) || 0;
-		const maxPiiWeight = parseInt(piiRow.max_weight) || 0;
-		const criticalPiiCount = parseInt(piiRow.critical_pii_count) || 0;
-		const piiCategories = (piiRow.pii_categories || []).filter(
-			(c) => c !== null,
-		);
 
 		// ===========================================
 		// STEP 3: Calculate Permission Risk
 		// ===========================================
 		// Get permissions for this asset to calculate permission risk
 		const permissionQuery = `
-			SELECT DISTINCT access_type
-			FROM access_permissions
-			WHERE asset_id = $1
+			SELECT ap.access_type, r.role_name
+			FROM access_permissions ap
+			JOIN roles r ON ap.role_id = r.role_id
+			WHERE ap.asset_id = $1
+			ORDER BY r.role_name, ap.access_type
 		`;
-		const permissionResult = await pool.query(permissionQuery, [assetId]);
-		const permissions = permissionResult.rows;
-
-		// Calculate average permission risk score
-		let permissionRisk = 0;
-		if (permissions.length > 0) {
-			const permissionScores = permissions.map(
-				(p) => PERMISSION_RISK_MAPPING[p.access_type] || 0,
-			);
-			permissionRisk =
-				permissionScores.reduce((sum, score) => sum + score, 0) /
-				permissionScores.length;
-		}
 
 		// ===========================================
 		// STEP 4: Calculate Audit Activity Risk
@@ -197,9 +122,6 @@ async function calculateAssetRisk(assetId) {
 			FROM audit_logs
 			WHERE asset_id = $1
 		`;
-		const auditResult = await pool.query(auditQuery, [assetId]);
-		const auditLogCount = parseInt(auditResult.rows[0]?.log_count) || 0;
-		const auditActivityScore = calculateAuditActivityScore(auditLogCount);
 
 		// ===========================================
 		// STEP 5: Calculate Security Control Reduction
@@ -210,91 +132,115 @@ async function calculateAssetRisk(assetId) {
 			FROM security_controls
 			WHERE asset_id = $1
 		`;
-		const securityResult = await pool.query(securityQuery, [assetId]);
+
+		// Run independent lookups concurrently to reduce end-to-end latency.
+		const [piiResult, permissionResult, auditResult, securityResult] =
+			await Promise.all([
+				pool.query(piiQuery, [assetId]),
+				pool.query(permissionQuery, [assetId]),
+				pool.query(auditQuery, [assetId]),
+				pool.query(securityQuery, [assetId]),
+			]);
+
+		const piiRow = piiResult.rows[0];
+		const piiCount = parseInt(piiRow.pii_count) || 0;
+		const totalPiiWeight = parseInt(piiRow.total_weight) || 0;
+		const maxPiiWeight = parseInt(piiRow.max_weight) || 0;
+		const criticalPiiCount = parseInt(piiRow.critical_pii_count) || 0;
+		const piiCategories = (piiRow.pii_categories || []).filter(
+			(c) => c !== null,
+		);
+
+		const permissions = permissionResult.rows;
+		const rolesWithAccess = new Set(
+			permissions
+				.map((permission) => permission.role_name)
+				.filter(Boolean),
+		).size;
+
+		const permissionScoreSum = permissions.reduce((sum, permission) => {
+			const accessType = String(
+				permission.access_type || "",
+			).toUpperCase();
+			return sum + (PERMISSION_RISK_MAPPING[accessType] || 0);
+		}, 0);
+		const permissionScoreCap = rolesWithAccess * 10;
+		const permissionPercent =
+			permissionScoreCap > 0
+				? Math.min(permissionScoreSum, permissionScoreCap) /
+					permissionScoreCap
+				: 0;
+
+		const auditLogCount = parseInt(auditResult.rows[0]?.log_count) || 0;
+		const auditPercent = normalizeAuditPercent(auditLogCount);
+
 		const securityControls = securityResult.rows[0];
 
-		// Calculate security control score (sum of enabled controls, capped at 6)
-		let securityControlScore = 0;
+		// Calculate Security% (sum of enabled controls, capped at 1.0)
+		let securityPercent = 0;
 		if (securityControls) {
 			if (securityControls.encryption)
-				securityControlScore += SECURITY_CONTROL_VALUES.encryption;
+				securityPercent += SECURITY_CONTROL_VALUES.encryption;
 			if (securityControls.hashing)
-				securityControlScore += SECURITY_CONTROL_VALUES.hashing;
+				securityPercent += SECURITY_CONTROL_VALUES.hashing;
 			if (securityControls.masking)
-				securityControlScore += SECURITY_CONTROL_VALUES.masking;
+				securityPercent += SECURITY_CONTROL_VALUES.masking;
 		}
-		securityControlScore = Math.min(securityControlScore, 6); // Cap at 6
+		securityPercent = Math.min(securityPercent, 1);
 
 		// ===========================================
 		// STEP 6: RISK ENGINE - Calculate Final Risk Score
 		// ===========================================
-		// Risk score calculated on 0-150 scale, then normalized to 0-100%
 
-		let riskScore = 0;
-		let riskLevel = "LOW";
+		const piiGate = containsPii ? 1 : 0;
+		const piiNormalized = Math.min(totalPiiWeight, 300) / 300;
 
-		// --- BASE RISK FACTORS (Core Risk) ---
+		const sensitivityContribution = sensitivityPercent * 0.2;
+		const piiContribution = piiNormalized * 0.35 * piiGate;
+		const permissionContribution = permissionPercent * 0.25;
+		const auditContribution = auditPercent * 0.1;
 
-		// Factor 1: Sensitivity Level (0-10 points)
-		// Inherent classification of the asset
-		const sensitivityContribution = sensitivityScore;
-		riskScore += sensitivityContribution;
+		const rawRisk =
+			sensitivityContribution +
+			piiContribution +
+			permissionContribution +
+			auditContribution;
 
-		// Factor 2: PII Base Weight (0-100 points)
-		// Sum of all normalized PII weights assigned to asset
-		const piiBaseScore = Math.min(totalPiiWeight, 100);
-		riskScore += piiBaseScore;
+		const securityReduction = securityPercent * 0.3;
+		const finalNormalizedScore = Math.min(
+			1,
+			Math.max(rawRisk - securityReduction, 0),
+		);
+		const riskScore = finalNormalizedScore * 100;
 
-		// Factor 3: PII Count Bonus (0-30 points)
-		// More PII types = higher exposure risk
-		let piiCountBonus = 0;
-		if (piiCount >= 6) piiCountBonus = 30;
-		else if (piiCount >= 4) piiCountBonus = 15;
-		else if (piiCount >= 2) piiCountBonus = 5;
-		riskScore += piiCountBonus;
+		// Layer 2: compute per-asset ceiling (security excluded)
+		const maxSensitivity = 0.2;
+		const maxPermissions = 0.25;
+		const maxAudit = 0.1;
+		const maxPii = piiNormalized * 0.35 * piiGate;
+		const maxRaw = maxSensitivity + maxPii + maxPermissions + maxAudit;
+		const maxScore = Math.min(Math.max(maxRaw, 0), 1) * 100;
 
-		// Factor 4: Critical PII Bonus (0-N*10 points)
-		// High-weight PII types pose significant risk
-		const criticalPiiBonus = criticalPiiCount * 10;
-		riskScore += criticalPiiBonus;
+		const t1 = maxScore * 0.05;
+		const t2 = maxScore * 0.2;
+		const t3 = maxScore * 0.4;
+		const t4 = maxScore * 0.65;
+		const t5 = maxScore * 0.85;
 
-		// --- ADDITIVE RISK FACTORS (15% each) ---
-
-		// Factor 5: Permission Risk (+15% of total)
-		// Broader access permissions increase exposure
-		const permissionContribution = (permissionRisk / 10) * 150 * 0.15;
-		riskScore += permissionContribution;
-
-		// Factor 6: Audit Activity Risk (+15% of total)
-		// Frequent access indicates higher exposure
-		const auditContribution = (auditActivityScore / 10) * 150 * 0.15;
-		riskScore += auditContribution;
-
-		// --- RISK REDUCTION FACTORS ---
-
-		// Factor 7: Security Controls (-15% of total)
-		// Apply reduction only when the asset has PII exposure.
-		// This avoids driving non-PII assets to 0 solely due to controls.
-		const securityReduction =
-			piiCount > 0 ? (securityControlScore / 6) * 150 * 0.15 : 0;
-		riskScore -= securityReduction;
-
-		// Ensure score stays within valid range
-		riskScore = Math.max(riskScore, 0);
-		riskScore = Math.min(riskScore, 150);
-
-		// Determine risk level
-		// Assets without PII should still retain non-zero risk from other factors
-		// (sensitivity, permissions, audit activity), so only force 0 when score is 0.
-		if (riskScore === 0) {
+		// Layer 3: resolve label against dynamic ceiling thresholds
+		let riskLevel = "MINIMAL";
+		if (riskScore <= t1) {
+			riskLevel = "MINIMAL";
+		} else if (riskScore <= t2) {
 			riskLevel = "LOW";
-			riskScore = 0;
-		} else if (riskScore <= 40) {
-			riskLevel = "LOW";
-		} else if (riskScore <= 100) {
-			riskLevel = "MEDIUM";
-		} else {
+		} else if (riskScore <= t3) {
+			riskLevel = "MODERATE";
+		} else if (riskScore <= t4) {
 			riskLevel = "HIGH";
+		} else if (riskScore <= t5) {
+			riskLevel = "CRITICAL";
+		} else {
+			riskLevel = "EXTREME";
 		}
 
 		return {
@@ -303,20 +249,23 @@ async function calculateAssetRisk(assetId) {
 			assetName,
 
 			// Final Risk Assessment
-			riskScore: parseFloat((riskScore / 150) * 100).toFixed(2), // Normalized to 0-100%
+			riskScore: riskScore.toFixed(2),
 			riskLevel,
+			maxScore: maxScore.toFixed(2),
 
 			// Risk Breakdown Components
+			containsPii,
+			piiGate,
 			sensitivityLevel,
-			sensitivityScore,
+			sensitivityScore: (sensitivityPercent * 10).toFixed(2),
 			piiCount,
 			totalPiiWeight,
 			maxPiiWeight,
 			criticalPiiCount,
-			permissionRisk: parseFloat(permissionRisk).toFixed(2),
+			permissionRisk: (permissionPercent * 10).toFixed(2),
 			auditLogCount,
-			auditActivityScore,
-			securityControlScore,
+			auditActivityScore: (auditPercent * 10).toFixed(2),
+			securityControlScore: (securityPercent * 6).toFixed(2),
 			securityControls: securityControls || {
 				encryption: false,
 				hashing: false,
@@ -324,19 +273,43 @@ async function calculateAssetRisk(assetId) {
 			},
 			piiCategories,
 
+			// Permission details for display
+			permissions: permissions.reduce((groups, p) => {
+				const key = p.role_name;
+				if (!groups[key]) groups[key] = [];
+				groups[key].push(p.access_type);
+				return groups;
+			}, {}),
+			permissionRawScore: permissionScoreSum,
+			permissionScoreCap,
+			rolesWithAccess,
+
 			// Calculation Breakdown (for transparency)
 			riskBreakdown: {
-				sensitivityContribution: parseFloat(
-					sensitivityContribution,
+				sensitivityContribution: (
+					sensitivityContribution * 100
 				).toFixed(2),
-				piiBaseScore: parseFloat(piiBaseScore).toFixed(2),
-				piiCountBonus: parseFloat(piiCountBonus).toFixed(2),
-				criticalPiiBonus: parseFloat(criticalPiiBonus).toFixed(2),
-				permissionContribution: parseFloat(
-					permissionContribution,
-				).toFixed(2),
-				auditContribution: parseFloat(auditContribution).toFixed(2),
-				securityReduction: parseFloat(securityReduction).toFixed(2),
+				piiBaseScore: (piiContribution * 100).toFixed(2),
+				piiCountBonus: "0.00",
+				criticalPiiBonus: "0.00",
+				permissionContribution: (permissionContribution * 100).toFixed(
+					2,
+				),
+				auditContribution: (auditContribution * 100).toFixed(2),
+				securityReduction: (securityReduction * 100).toFixed(2),
+				rawRiskScore: (rawRisk * 100).toFixed(2),
+				permissionRawScore: permissionScoreSum,
+				permissionScoreCap,
+				rolesWithAccess,
+				maxScore: maxScore.toFixed(2),
+				thresholds: {
+					minimal: t1.toFixed(2),
+					low: t2.toFixed(2),
+					moderate: t3.toFixed(2),
+					high: t4.toFixed(2),
+					critical: t5.toFixed(2),
+					extreme: maxScore.toFixed(2),
+				},
 			},
 
 			timestamp: new Date(),
@@ -357,16 +330,15 @@ async function calculateAllAssetRisks() {
 		const assetsResult = await pool.query(assetsQuery);
 		const assets = assetsResult.rows;
 
-		const riskData = [];
-		for (const asset of assets) {
-			const risk = await calculateAssetRisk(asset.asset_id);
-			riskData.push({
-				asset_id: asset.asset_id,
-				...risk,
-			});
-		}
-
-		return riskData;
+		return Promise.all(
+			assets.map(async (asset) => {
+				const risk = await calculateAssetRisk(asset.asset_id);
+				return {
+					asset_id: asset.asset_id,
+					...risk,
+				};
+			}),
+		);
 	} catch (error) {
 		console.error("Error calculating all asset risks:", error);
 		throw error;

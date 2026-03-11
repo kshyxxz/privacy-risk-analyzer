@@ -76,7 +76,7 @@ CREATE TABLE access_permissions (
     permission_id SERIAL PRIMARY KEY,
     asset_id INT NOT NULL,
     role_id INT NOT NULL,
-    access_type VARCHAR(20) CHECK (access_type IN ('READ','WRITE','UPDATE')),
+    access_type VARCHAR(20) CHECK (access_type IN ('READ','WRITE','UPDATE','DELETE')),
     
     CONSTRAINT fk_permission_asset
         FOREIGN KEY (asset_id)
@@ -86,7 +86,10 @@ CREATE TABLE access_permissions (
     CONSTRAINT fk_permission_role
         FOREIGN KEY (role_id)
         REFERENCES roles(role_id)
-        ON DELETE CASCADE
+        ON DELETE CASCADE,
+
+    CONSTRAINT uk_permission_role_asset_access
+        UNIQUE (role_id, asset_id, access_type)
 );
 
 
@@ -131,7 +134,7 @@ CREATE TABLE risk_assessment (
     risk_id SERIAL PRIMARY KEY,
     asset_id INT UNIQUE,
     risk_score NUMERIC(5,2),
-    risk_level VARCHAR(20) CHECK (risk_level IN ('LOW','MEDIUM','HIGH')),
+    risk_level VARCHAR(20) CHECK (risk_level IN ('MINIMAL','LOW','MODERATE','HIGH','CRITICAL','EXTREME')),
     last_analyzed TIMESTAMP,
     
     CONSTRAINT fk_risk_asset

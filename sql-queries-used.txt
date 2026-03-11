@@ -1,0 +1,155 @@
+Privacy Risk Analyzer - SQL Queries Used
+
+This file lists SQL commands used across the project and what each is used for.
+
+Schema and DDL (backend/schema.sql)
+- CREATE TABLE roles (...)
+  Use: Stores application roles (Admin/Analyst/Intern).
+- CREATE TABLE users (...)
+  Use: Stores user accounts and links users to roles.
+- CREATE TABLE data_assets (...)
+  Use: Stores registered data assets for risk and governance tracking.
+- CREATE TABLE pii_types (...)
+  Use: Stores PII definitions and weight values.
+- CREATE TABLE asset_pii_mapping (...)
+  Use: Maps assets to PII types and optional column names.
+- CREATE TABLE access_permissions (...)
+  Use: Stores role-based permissions per asset.
+- CREATE TABLE security_controls (...)
+  Use: Stores enabled security controls for each asset.
+- CREATE TABLE audit_logs (...)
+  Use: Stores access/action history for audit reporting.
+- CREATE TABLE risk_assessment (...)
+  Use: Stores computed risk score/level per asset.
+
+Database initialization (backend/initDb.js)
+- SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users'
+  Use: Checks whether the schema already exists.
+- [Executes each statement from schema.sql via pool.query(statement)]
+  Use: Applies schema statements when tables are missing.
+- SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name
+  Use: Lists existing tables after initialization.
+- INSERT INTO roles (role_name, description) VALUES (...) ON CONFLICT (role_name) DO NOTHING
+  Use: Seeds default roles safely without duplicates.
+- ALTER TABLE security_controls ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  Use: Ensures updated_at column exists for security controls.
+- UPDATE security_controls SET updated_at = CURRENT_TIMESTAMP WHERE updated_at IS NULL
+  Use: Backfills missing updated_at values.
+
+Auth queries (backend/controllers/auth/authController.js)
+- SELECT * FROM users WHERE username = $1 OR email = $2
+  Use: Prevents duplicate user registration.
+- SELECT user_id FROM users u JOIN roles r ON u.role_id = r.role_id WHERE r.role_name = 'Admin' LIMIT 1
+  Use: Checks if an admin account already exists.
+- SELECT role_id, role_name FROM roles WHERE role_name = $1
+  Use: Resolves selected role before user creation.
+- INSERT INTO users (username, email, password_hash, role_id) VALUES (...) RETURNING user_id, username, email, role_id
+  Use: Creates new user account.
+- SELECT password_hash FROM users WHERE user_id = $1
+  Use: Verifies password immediately after registration sanity check.
+- SELECT u.user_id, u.username, u.email, u.password_hash, r.role_name FROM users u LEFT JOIN roles r ON u.role_id = r.role_id WHERE u.username = $1
+  Use: Loads login user record and role details.
+
+User queries (backend/controllers/user/userController.js)
+- SELECT u.user_id, u.username, u.email, r.role_name as role FROM users u LEFT JOIN roles r ON u.role_id = r.role_id ORDER BY u.user_id
+  Use: Lists all users.
+- SELECT u.user_id, u.username, u.email, r.role_name as role FROM users u LEFT JOIN roles r ON u.role_id = r.role_id WHERE u.user_id = $1
+  Use: Fetches one user by ID.
+- UPDATE users SET username = $1, email = $2 WHERE user_id = $3
+  Use: Updates user profile fields.
+- DELETE FROM users WHERE user_id = $1
+  Use: Deletes a user.
+
+Role queries (backend/controllers/role/roleController.js)
+- SELECT role_id, role_name, description FROM roles ORDER BY role_id
+  Use: Lists all available roles.
+
+Asset queries (backend/controllers/asset/assetController.js)
+- SELECT data_assets.*, LOWER(COALESCE(sensitivity_level, '')) AS risk_level FROM data_assets ORDER BY asset_id
+  Use: Lists assets with normalized risk-level-like field.
+- SELECT user_id FROM users WHERE user_id = $1
+  Use: Validates created_by user exists.
+- INSERT INTO data_assets(asset_name, db_name, table_name, sensitivity_level, contains_pii, created_by) VALUES(...) RETURNING *
+  Use: Creates a data asset.
+- SELECT asset_id FROM data_assets WHERE asset_id = $1
+  Use: Confirms asset exists before delete.
+- DELETE FROM data_assets WHERE asset_id = $1
+  Use: Deletes an asset.
+
+PII type queries (backend/controllers/pii/piiController.js)
+- SELECT * FROM pii_types ORDER BY pii_id
+  Use: Lists all PII types.
+- INSERT INTO pii_types (pii_name, pii_category, pii_weight) VALUES (...) RETURNING *
+  Use: Creates PII type.
+- UPDATE pii_types SET pii_name = $1, pii_category = $2, pii_weight = $3 WHERE pii_id = $4
+  Use: Updates PII type.
+- DELETE FROM pii_types WHERE pii_id = $1 RETURNING pii_id
+  Use: Deletes PII type.
+
+Asset-PII mapping queries (backend/controllers/asset-pii/assetPiiController.js)
+- INSERT INTO asset_pii_mapping(asset_id, pii_id, column_name) VALUES($1,$2,$3) ON CONFLICT DO NOTHING
+  Use: Adds mapping(s) while avoiding duplicate key conflicts.
+- SELECT ap.mapping_id, p.pii_id, p.pii_name, p.pii_category, p.pii_weight, ap.column_name FROM asset_pii_mapping ap JOIN pii_types p ON ap.pii_id = p.pii_id WHERE ap.asset_id = $1 ORDER BY ap.mapping_id
+  Use: Lists PII mappings for one asset.
+- DELETE FROM asset_pii_mapping WHERE mapping_id = $1 RETURNING asset_id
+  Use: Deletes mapping by mapping ID.
+- DELETE FROM asset_pii_mapping WHERE asset_id = $1 AND pii_id = $2 RETURNING asset_id
+  Use: Deletes mapping by asset/PII pair.
+- UPDATE asset_pii_mapping SET column_name = $1 WHERE mapping_id = $2 RETURNING asset_id
+  Use: Updates mapped column by mapping ID.
+- UPDATE asset_pii_mapping SET column_name = $1 WHERE asset_id = $2 AND pii_id = $3 RETURNING asset_id
+  Use: Updates mapped column by asset/PII pair.
+
+Permission queries (backend/controllers/permission/permissionController.js)
+- SELECT ap.permission_id, r.role_name, d.asset_name, ap.access_type FROM access_permissions ap JOIN roles r ON ap.role_id = r.role_id JOIN data_assets d ON ap.asset_id = d.asset_id ORDER BY ap.permission_id
+  Use: Lists permissions with role and asset names.
+- SELECT permission_id FROM access_permissions WHERE role_id = $1 AND asset_id = $2
+  Use: Checks if permission already exists for role/asset.
+- UPDATE access_permissions SET access_type = $1 WHERE permission_id = $2 RETURNING *
+  Use: Updates existing permission access type.
+- INSERT INTO access_permissions (role_id, asset_id, access_type) VALUES ($1,$2,$3) RETURNING *
+  Use: Creates new permission.
+- UPDATE access_permissions SET role_id = $1, asset_id = $2, access_type = $3 WHERE permission_id = $4
+  Use: Edits permission record by ID.
+- DELETE FROM access_permissions WHERE permission_id = $1 RETURNING asset_id
+  Use: Deletes permission by ID.
+
+Security control queries (backend/controllers/security-control/securityControlController.js)
+- SELECT sc.control_id, sc.asset_id, da.asset_name, sc.encryption, sc.masking, sc.hashing, COALESCE(TO_CHAR(sc.updated_at, 'YYYY-MM-DD HH24:MI:SS'), TO_CHAR(CURRENT_TIMESTAMP, 'YYYY-MM-DD HH24:MI:SS')) AS last_updated, sc.updated_at FROM security_controls sc ...
+  Use: Lists security controls joined with asset names.
+- SELECT asset_id FROM data_assets WHERE asset_id = $1
+  Use: Validates asset before writing controls.
+- INSERT INTO security_controls (asset_id, encryption, masking, hashing, updated_at) VALUES (...) ON CONFLICT (asset_id) DO UPDATE SET ... RETURNING *
+  Use: Upserts security controls for an asset.
+
+Audit queries (backend/controllers/audit/auditController.js and backend/services/auditLogService.js)
+- SELECT a.log_id, COALESCE(u.username, 'Deleted User') AS username, CASE WHEN a.asset_id IS NULL THEN '-' ELSE COALESCE(d.asset_name, 'Deleted Asset') END AS asset_name, a.action, a.timestamp FROM audit_logs a LEFT JOIN users u ... LEFT JOIN data_assets d ... WHERE 1=1 [optional filters] ORDER BY a.timestamp DESC
+  Use: Returns audit log list with optional filtering by user/asset.
+- SELECT log_id FROM audit_logs WHERE user_id = $1 AND action = 'READ' AND (($2::int IS NULL AND asset_id IS NULL) OR asset_id = $2) AND timestamp >= NOW() - ($3 * INTERVAL '1 second')
+  Use: Rate-limits duplicate READ logs in short windows.
+- INSERT INTO audit_logs (user_id, asset_id, action) VALUES ($1, $2, $3)
+  Use: Writes audit events.
+
+Risk queries (backend/controllers/risk/riskController.js and backend/services/riskService.js)
+- SELECT * FROM data_assets WHERE asset_id = $1
+  Use: Fetches one asset before risk computation.
+- SELECT da.asset_id, da.asset_name, da.db_name, da.table_name, da.sensitivity_level, da.created_at FROM data_assets da ORDER BY da.asset_id
+  Use: Lists assets for bulk risk views/calculation.
+- SELECT pt.pii_category, COUNT(DISTINCT apm.asset_id) as asset_count, COUNT(*) as mapping_count, AVG(pt.pii_weight) as avg_weight FROM asset_pii_mapping apm LEFT JOIN pii_types pt ON apm.pii_id = pt.pii_id GROUP BY pt.pii_category ORDER BY asset_count DESC
+  Use: Builds PII distribution analytics.
+- SELECT asset_name, sensitivity_level FROM data_assets WHERE asset_id = $1
+  Use: Gets base asset data for scoring.
+- SELECT COUNT(DISTINCT apm.pii_id) as pii_count, COALESCE(SUM(LEAST(pt.pii_weight, 10)), 0) as total_weight, ARRAY_AGG(DISTINCT pt.pii_category) as pii_categories, MAX(LEAST(pt.pii_weight, 10)) as max_weight, COUNT(DISTINCT apm.pii_id) FILTER (WHERE pt.pii_weight >= 30) as critical_pii_count FROM asset_pii_mapping apm LEFT JOIN pii_types pt ON apm.pii_id = pt.pii_id WHERE apm.asset_id = $1
+  Use: Computes PII-related risk factors.
+- SELECT DISTINCT access_type FROM access_permissions WHERE asset_id = $1
+  Use: Computes permission-related risk factors.
+- SELECT COUNT(*) as log_count FROM audit_logs WHERE asset_id = $1
+  Use: Computes activity/audit-related risk factor.
+- SELECT encryption, hashing, masking FROM security_controls WHERE asset_id = $1
+  Use: Computes security control risk reduction.
+- SELECT asset_id FROM data_assets
+  Use: Gets all asset IDs for batch risk refresh.
+- INSERT INTO risk_assessment (asset_id, risk_score, risk_level, last_analyzed) VALUES ($1, $2, $3, CURRENT_TIMESTAMP) ON CONFLICT (asset_id) DO UPDATE SET risk_score = $2, risk_level = $3, last_analyzed = CURRENT_TIMESTAMP
+  Use: Upserts latest calculated risk result.
+- SELECT * FROM risk_assessment WHERE asset_id = $1
+  Use: Returns saved risk assessment for an asset.

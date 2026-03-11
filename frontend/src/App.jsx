@@ -7,22 +7,22 @@ import {
 
 import { AuthProvider } from "./context/AuthContext";
 
-import LandingPage from "./pages/LandingPage";
-import Login from "./pages/Login";
-import Register from "./pages/Register";
+import LandingPage from "./pages/auth/LandingPage";
+import Login from "./pages/auth/Login";
+import Register from "./pages/auth/Register";
 import Dashboard from "./pages/Dashboard";
-import Assets from "./pages/Assets";
-import Users from "./pages/Users";
-import RiskAnalysis from "./pages/RiskAnalysis";
-import PiiTypes from "./pages/PiiTypes";
-import AddPiiType from "./pages/AddPiiType";
-import EditPiiType from "./pages/EditPiiType";
+import Assets from "./pages/assets/Assets";
+import Users from "./pages/users/Users";
+import RiskAnalysis from "./pages/risk/RiskAnalysis";
+import PiiTypes from "./pages/pii/PiiTypes";
+import AddPiiType from "./pages/pii/AddPiiType";
+import EditPiiType from "./pages/pii/EditPiiType";
 
-import Permissions from "./pages/Permissions";
-import AddPermission from "./pages/AddPermission";
-import EditPermission from "./pages/EditPermission";
+import Permissions from "./pages/permissions/Permissions";
+import AddPermission from "./pages/permissions/AddPermission";
+import EditPermission from "./pages/permissions/EditPermission";
 
-import AssignPiiToAsset from "./pages/AssignPiiToAsset";
+import AssignPiiToAsset from "./pages/pii/AssignPiiToAsset";
 
 import AuditLogs from "./pages/audit/AuditLogs";
 import SecurityControl from "./pages/security/SecurityControl";

@@ -7,6 +7,15 @@ import RiskChart from "../components/dashboard/RiskChart";
 import RecentActivity from "../components/dashboard/RecentActivity";
 import api from "../api/axiosConfig";
 
+const DEFAULT_RISK_COUNTS = {
+	MINIMAL: 0,
+	LOW: 0,
+	MODERATE: 0,
+	HIGH: 0,
+	CRITICAL: 0,
+	EXTREME: 0,
+};
+
 export default function Dashboard() {
 	const { user } = useContext(AuthContext);
 	const navigate = useNavigate();
@@ -22,13 +31,39 @@ export default function Dashboard() {
 	});
 
 	const [riskData, setRiskData] = useState({
-		highRisk: 0,
-		mediumRisk: 0,
+		minimalRisk: 0,
 		lowRisk: 0,
+		moderateRisk: 0,
+		highRisk: 0,
+		criticalRisk: 0,
+		extremeRisk: 0,
 	});
 
 	const [activities, setActivities] = useState([]);
 	const [loading, setLoading] = useState(true);
+
+	const getRiskCounts = (assets = []) => {
+		const countsByLevel = assets.reduce(
+			(acc, asset) => {
+				const level = asset?.riskLevel;
+				if (Object.prototype.hasOwnProperty.call(acc, level)) {
+					acc[level] += 1;
+				}
+				return acc;
+			},
+			{ ...DEFAULT_RISK_COUNTS },
+		);
+
+		return {
+			countsByLevel,
+			highRiskCount:
+				countsByLevel.HIGH +
+				countsByLevel.CRITICAL +
+				countsByLevel.EXTREME,
+			mediumRiskCount: countsByLevel.MODERATE,
+			lowRiskCount: countsByLevel.MINIMAL + countsByLevel.LOW,
+		};
+	};
 
 	useEffect(() => {
 		const fetchDashboardData = async () => {
@@ -54,15 +89,12 @@ export default function Dashboard() {
 								.catch(() => ({ data: [], status: 200 })),
 						]);
 
-					const highRiskCount =
-						riskRes.data?.filter((a) => a.riskLevel === "HIGH")
-							.length || 0;
-					const mediumRiskCount =
-						riskRes.data?.filter((a) => a.riskLevel === "MEDIUM")
-							.length || 0;
-					const lowRiskCount =
-						riskRes.data?.filter((a) => a.riskLevel === "LOW")
-							.length || 0;
+					const {
+						countsByLevel,
+						highRiskCount,
+						mediumRiskCount,
+						lowRiskCount,
+					} = getRiskCounts(riskRes.data || []);
 
 					setStats({
 						totalUsers: usersRes.data?.length || 0,
@@ -74,9 +106,12 @@ export default function Dashboard() {
 					});
 
 					setRiskData({
-						highRisk: highRiskCount,
-						mediumRisk: mediumRiskCount,
-						lowRisk: lowRiskCount,
+						minimalRisk: countsByLevel.MINIMAL,
+						lowRisk: countsByLevel.LOW,
+						moderateRisk: countsByLevel.MODERATE,
+						highRisk: countsByLevel.HIGH,
+						criticalRisk: countsByLevel.CRITICAL,
+						extremeRisk: countsByLevel.EXTREME,
 					});
 
 					setActivities(
@@ -97,15 +132,12 @@ export default function Dashboard() {
 							.catch(() => ({ data: [], status: 200 })),
 					]);
 
-					const highRiskCount =
-						riskRes.data?.filter((a) => a.riskLevel === "HIGH")
-							.length || 0;
-					const mediumRiskCount =
-						riskRes.data?.filter((a) => a.riskLevel === "MEDIUM")
-							.length || 0;
-					const lowRiskCount =
-						riskRes.data?.filter((a) => a.riskLevel === "LOW")
-							.length || 0;
+					const {
+						countsByLevel,
+						highRiskCount,
+						mediumRiskCount,
+						lowRiskCount,
+					} = getRiskCounts(riskRes.data || []);
 
 					setStats({
 						totalAssets: riskRes.data?.length || 0,
@@ -117,9 +149,12 @@ export default function Dashboard() {
 					});
 
 					setRiskData({
-						highRisk: highRiskCount,
-						mediumRisk: mediumRiskCount,
-						lowRisk: lowRiskCount,
+						minimalRisk: countsByLevel.MINIMAL,
+						lowRisk: countsByLevel.LOW,
+						moderateRisk: countsByLevel.MODERATE,
+						highRisk: countsByLevel.HIGH,
+						criticalRisk: countsByLevel.CRITICAL,
+						extremeRisk: countsByLevel.EXTREME,
 					});
 
 					setActivities(
@@ -145,9 +180,12 @@ export default function Dashboard() {
 					});
 
 					setRiskData({
-						highRisk: 0,
-						mediumRisk: 0,
+						minimalRisk: 0,
 						lowRisk: 0,
+						moderateRisk: 0,
+						highRisk: 0,
+						criticalRisk: 0,
+						extremeRisk: 0,
 					});
 				}
 			} catch (error) {
@@ -242,6 +280,8 @@ export default function Dashboard() {
 								gridTemplateColumns: "1fr 1fr",
 								gap: "20px",
 								marginBottom: "30px",
+								alignItems: "stretch",
+								minHeight: "450px",
 							}}
 						>
 							<RiskChart data={riskData} />
@@ -577,7 +617,7 @@ export default function Dashboard() {
 								bgColor="#dc3545"
 							/>
 							<StatCard
-								title="Medium Risk Assets"
+								title="Moderate Risk Assets"
 								value={stats.mediumRiskAssets}
 								icon="🟡"
 								bgColor="#ffc107"
@@ -597,6 +637,8 @@ export default function Dashboard() {
 								gridTemplateColumns: "1fr 1fr",
 								gap: "20px",
 								marginBottom: "30px",
+								alignItems: "stretch",
+								minHeight: "450px",
 							}}
 						>
 							<RiskChart data={riskData} />
