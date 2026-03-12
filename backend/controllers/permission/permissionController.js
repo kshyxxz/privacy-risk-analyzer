@@ -74,6 +74,16 @@ exports.createPermission = async (req, res) => {
 		res.status(201).json(result.rows[0]);
 	} catch (error) {
 		console.error("Error creating permission:", error);
+		if (error.code === "23505") {
+			return res.status(409).json({
+				error: "Permission already exists for this role, asset, and access type",
+			});
+		}
+		if (error.code === "23514" || error.code === "22P02") {
+			return res.status(400).json({
+				error: "Invalid access_type. Allowed values: READ, WRITE, UPDATE, DELETE",
+			});
+		}
 		res.status(500).json({ error: "Failed to create permission" });
 	}
 };
@@ -129,6 +139,16 @@ exports.updatePermission = async (req, res) => {
 		res.status(200).json({ message: "Permission updated successfully" });
 	} catch (error) {
 		console.error("Error updating permission:", error);
+		if (error.code === "23505") {
+			return res.status(409).json({
+				error: "Permission already exists for this role, asset, and access type",
+			});
+		}
+		if (error.code === "23514" || error.code === "22P02") {
+			return res.status(400).json({
+				error: "Invalid access_type. Allowed values: READ, WRITE, UPDATE, DELETE",
+			});
+		}
 		res.status(500).json({ error: "Failed to update permission" });
 	}
 };

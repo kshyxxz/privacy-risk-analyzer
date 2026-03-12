@@ -26,6 +26,9 @@ const PERMISSION_RISK_MAPPING = {
 	DELETE: 4,
 };
 
+const BASELINE_ROLE_COUNT = 3;
+const BASELINE_PERMISSION_SCORE_CAP = BASELINE_ROLE_COUNT * 10;
+
 /**
  * Security control reduction values used to compute Security%.
  */
@@ -164,7 +167,7 @@ async function calculateAssetRisk(assetId) {
 			).toUpperCase();
 			return sum + (PERMISSION_RISK_MAPPING[accessType] || 0);
 		}, 0);
-		const permissionScoreCap = rolesWithAccess * 10;
+		const permissionScoreCap = BASELINE_PERMISSION_SCORE_CAP;
 		const permissionPercent =
 			permissionScoreCap > 0
 				? Math.min(permissionScoreSum, permissionScoreCap) /

@@ -73,6 +73,29 @@ async function initializeDatabase() {
 		console.log("✅ security_controls.updated_at verified");
 
 		// Ensure access_permissions supports the allowed model (READ/WRITE/UPDATE/DELETE).
+		// Some legacy databases used a custom enum for access_type; convert to text first
+		// so DELETE can be persisted consistently across environments.
+		await pool.query(`
+			DO $$
+			DECLARE
+				current_udt text;
+			BEGIN
+				SELECT c.udt_name
+				INTO current_udt
+				FROM information_schema.columns c
+				WHERE c.table_schema = 'public'
+				  AND c.table_name = 'access_permissions'
+				  AND c.column_name = 'access_type';
+
+				IF current_udt IS NOT NULL
+				   AND current_udt NOT IN ('varchar', 'text', 'bpchar') THEN
+					EXECUTE 'ALTER TABLE public.access_permissions ALTER COLUMN access_type TYPE text USING access_type::text';
+				END IF;
+			END $$;
+		`);
+		await pool.query(
+			"UPDATE access_permissions SET access_type = UPPER(access_type) WHERE access_type <> UPPER(access_type)",
+		);
 		await pool.query(
 			"UPDATE access_permissions SET access_type = 'DELETE' WHERE access_type = 'ADMIN'",
 		);

@@ -72,7 +72,7 @@ export default function RiskAnalysis() {
 						asset.permissionScoreCap ??
 						asset.permission_score_cap ??
 						asset.riskBreakdown?.permissionScoreCap ??
-						20,
+						30,
 					rolesWithAccess:
 						asset.rolesWithAccess ??
 						asset.roles_with_access ??
