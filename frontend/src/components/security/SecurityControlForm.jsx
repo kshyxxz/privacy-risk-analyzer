@@ -95,7 +95,7 @@ const SecurityControlForm = ({ refreshData }) => {
 				</div>
 				<div style={{ flex: "1", minWidth: "150px" }}>
 					<SecurityToggle
-						label="Masking"
+						label="Encoding"
 						value={masking}
 						onChange={setMasking}
 					/>

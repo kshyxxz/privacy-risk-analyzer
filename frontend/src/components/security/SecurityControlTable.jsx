@@ -15,7 +15,7 @@ const SecurityControlTable = ({ controls }) => {
 						<tr style={{ backgroundColor: "#f8f9fa" }}>
 							<th style={cellHeaderStyle}>Asset</th>
 							<th style={cellHeaderStyle}>Encryption</th>
-							<th style={cellHeaderStyle}>Masking</th>
+							<th style={cellHeaderStyle}>Encoding</th>
 							<th style={cellHeaderStyle}>Hashing</th>
 							<th style={cellHeaderStyle}>Last Updated</th>
 						</tr>
