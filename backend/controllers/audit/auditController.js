@@ -8,7 +8,7 @@ exports.getAllLogs = async (req, res) => {
 		SELECT a.log_id,
 					 COALESCE(u.username, 'Deleted User') AS username,
 					 CASE 
-						 WHEN a.asset_id IS NULL THEN '-'
+						 WHEN a.asset_id IS NULL THEN 'All Assets'
 						 ELSE COALESCE(d.asset_name, 'Deleted Asset')
 					 END AS asset_name,
 					 a.action,
@@ -40,4 +40,3 @@ exports.getAllLogs = async (req, res) => {
 		res.status(500).json({ error: "Failed to fetch audit logs" });
 	}
 };
-

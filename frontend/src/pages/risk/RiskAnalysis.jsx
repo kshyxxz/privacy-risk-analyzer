@@ -30,8 +30,19 @@ export default function RiskAnalysis() {
 
 	const fetchRiskAnalysis = async (isManualRefresh = false) => {
 		try {
+			let refreshWarning = "";
 			if (isManualRefresh) {
 				setRefreshing(true);
+				try {
+					await api.post("/risk/recalculate-all");
+				} catch (persistError) {
+					console.warn(
+						"Risk persistence failed during refresh, continuing with live calculation:",
+						persistError,
+					);
+					refreshWarning =
+						"Refresh loaded live risk data, but saving to risk_assessment failed. Please restart backend and try again.";
+				}
 			} else {
 				setLoading(true);
 			}
@@ -98,6 +109,10 @@ export default function RiskAnalysis() {
 					? res.data.map((asset) => normalizeAsset(asset))
 					: [],
 			);
+
+			if (refreshWarning) {
+				setError(refreshWarning);
+			}
 		} catch (err) {
 			console.error("Failed to fetch risk data:", err);
 			setError("Unable to load risk analysis right now.");
@@ -416,7 +431,7 @@ export default function RiskAnalysis() {
 																		.riskBreakdown
 																		?.permissionContribution,
 																)}
-																/ 0.25
+																/ 0.30
 															</div>
 															<div
 																style={{
@@ -459,7 +474,7 @@ export default function RiskAnalysis() {
 																		.riskBreakdown
 																		?.auditContribution,
 																)}
-																/ 0.10
+																/ 0.15
 															</div>
 														</td>
 														<td style={cellStyle}>
@@ -806,7 +821,7 @@ export default function RiskAnalysis() {
 																								?.permissionContribution,
 																						)}{" "}
 																						/
-																						0.25
+																						0.30
 																					</strong>
 																				</div>
 																				<div
@@ -852,7 +867,7 @@ export default function RiskAnalysis() {
 																								?.permissionContribution
 																						}{" "}
 																						pts
-																						(25%)
+																						(30%)
 																					</strong>
 																				</div>
 																			</div>
@@ -911,7 +926,7 @@ export default function RiskAnalysis() {
 																								?.auditContribution,
 																						)}{" "}
 																						/
-																						0.10
+																						0.15
 																					</strong>
 																				</div>
 																				<div
@@ -932,7 +947,7 @@ export default function RiskAnalysis() {
 																								?.auditContribution
 																						}{" "}
 																						pts
-																						(10%)
+																						(15%)
 																					</strong>
 																				</div>
 																			</div>
@@ -1254,7 +1269,7 @@ export default function RiskAnalysis() {
 																							Access
 																							scope
 																							impact
-																							(25%):
+																							(30%):
 																						</span>
 																						<strong>
 																							+
@@ -1276,7 +1291,7 @@ export default function RiskAnalysis() {
 																							Usage
 																							activity
 																							impact
-																							(10%):
+																							(15%):
 																						</span>
 																						<strong>
 																							+

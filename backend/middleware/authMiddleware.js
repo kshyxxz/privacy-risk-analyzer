@@ -3,14 +3,7 @@ const jwt = require("jsonwebtoken");
 exports.verifyToken = (req, res, next) => {
 	const token = req.headers.authorization?.split(" ")[1];
 
-	console.log("🔐 Token verification requested");
-	console.log(
-		"   Authorization header:",
-		req.headers.authorization?.substring(0, 20) + "...",
-	);
-
 	if (!token) {
-		console.log("   ❌ No token found");
 		return res
 			.status(401)
 			.json({ error: "No token provided. Please login." });
@@ -18,12 +11,6 @@ exports.verifyToken = (req, res, next) => {
 
 	try {
 		const decoded = jwt.verify(token, process.env.JWT_SECRET);
-		console.log(
-			"   ✅ Token valid. User:",
-			decoded.username,
-			"Role:",
-			decoded.role,
-		);
 		req.user = decoded;
 		next();
 	} catch (error) {

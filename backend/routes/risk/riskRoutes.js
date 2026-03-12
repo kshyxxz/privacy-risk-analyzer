@@ -18,6 +18,16 @@ router.get("/summary", verifyToken, riskController.getRiskSummary);
 router.get("/all", verifyToken, riskController.getAllAssetsRisk);
 
 /**
+ * POST /api/risk/recalculate-all
+ * Recalculate and persist risk_assessment for all assets
+ */
+router.post(
+	"/recalculate-all",
+	verifyToken,
+	riskController.recalculateAllAssetRisks,
+);
+
+/**
  * GET /api/risk/:assetId
  * Get dynamic risk analysis for a specific asset
  * Returns: { riskScore, riskLevel, piiCount, totalWeight, categories }

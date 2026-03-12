@@ -58,8 +58,6 @@ exports.register = async (req, res) => {
 
 		const roleId = roleResult.rows[0].role_id;
 
-		console.log("   Role ID:", roleId);
-
 		// Create new user
 		const result = await pool.query(
 			"INSERT INTO users (username, email, password_hash, role_id) VALUES ($1, $2, $3, $4) RETURNING user_id, username, email, role_id",
@@ -68,19 +66,6 @@ exports.register = async (req, res) => {
 
 		const user = result.rows[0];
 		const roleName = roleResult.rows[0].role_name;
-
-		console.log("   ✅ User created with ID:", user.user_id);
-		console.log("   ✅ Checking stored hash...");
-
-		// Verify what was actually stored
-		const storedUser = await pool.query(
-			"SELECT password_hash FROM users WHERE user_id = $1",
-			[user.user_id],
-		);
-		console.log(
-			"   Stored in DB:",
-			storedUser.rows[0].password_hash.substring(0, 50) + "...",
-		);
 
 		await logAuditEvent({
 			userId: user.user_id,
@@ -228,4 +213,3 @@ exports.checkAdminExists = async (req, res) => {
 		res.status(500).json({ error: "Failed to check admin status" });
 	}
 };
-

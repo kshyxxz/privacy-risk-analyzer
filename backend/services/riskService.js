@@ -6,19 +6,8 @@ const SENSITIVITY_LEVEL_MAPPING = {
 	Confidential: 0.6,
 	Restricted: 0.8,
 	"Top Secret": 1.0,
-
-	// Backward compatibility aliases
-	Sensitive: 0.8,
-	"Highly Sensitive": 1.0,
-	Low: 0.2,
-	Medium: 0.6,
-	High: 0.8,
-	Unknown: 0,
 };
 
-/**
- * Permission access mapping used to compute Permission%.
- */
 const PERMISSION_RISK_MAPPING = {
 	READ: 1,
 	WRITE: 2,
@@ -29,39 +18,16 @@ const PERMISSION_RISK_MAPPING = {
 const BASELINE_ROLE_COUNT = 3;
 const BASELINE_PERMISSION_SCORE_CAP = BASELINE_ROLE_COUNT * 10;
 
-/**
- * Security control reduction values used to compute Security%.
- */
 const SECURITY_CONTROL_VALUES = {
 	encryption: 0.5,
 	hashing: 0.33,
-	masking: 0.17, // Encoding-equivalent control
+	masking: 0.17,
 };
 
-/**
- * Normalize raw audit log count to 0-1 scale.
- */
 function normalizeAuditPercent(logCount) {
-	return Math.min(Math.max(logCount, 0), 1000) / 1000;
+	return Math.min(logCount, 1000) / 1000;
 }
 
-/**
- * DYNAMIC RISK ENGINE
- *
- * Calculates risk score for a data asset based on multiple factors:
- *
- * 1. Compute Final_Score from weighted factors and security reduction
- * 2. Compute Max_Score as asset-specific ceiling excluding security reduction
- * 3. Resolve label from fixed % bands of Max_Score
- *
- * RISK LEVELS (based on normalized % of ceiling):
- * - MINIMAL: 0% - 5%
- * - LOW: >5% - 20%
- * - MODERATE: >20% - 40%
- * - HIGH: >40% - 65%
- * - CRITICAL: >65% - 85%
- * - EXTREME: >85% - 100%
- */
 async function calculateAssetRisk(assetId) {
 	try {
 		// ===========================================
@@ -200,8 +166,8 @@ async function calculateAssetRisk(assetId) {
 
 		const sensitivityContribution = sensitivityPercent * 0.2;
 		const piiContribution = piiNormalized * 0.35 * piiGate;
-		const permissionContribution = permissionPercent * 0.25;
-		const auditContribution = auditPercent * 0.1;
+		const permissionContribution = permissionPercent * 0.3;
+		const auditContribution = auditPercent * 0.15;
 
 		const rawRisk =
 			sensitivityContribution +
@@ -218,9 +184,10 @@ async function calculateAssetRisk(assetId) {
 
 		// Layer 2: compute per-asset ceiling (security excluded)
 		const maxSensitivity = 0.2;
-		const maxPermissions = 0.25;
-		const maxAudit = 0.1;
+		const maxPermissions = 0.3;
+		const maxAudit = 0.15;
 		const maxPii = piiNormalized * 0.35 * piiGate;
+
 		const maxRaw = maxSensitivity + maxPii + maxPermissions + maxAudit;
 		const maxScore = Math.min(Math.max(maxRaw, 0), 1) * 100;
 

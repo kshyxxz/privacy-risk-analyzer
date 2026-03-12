@@ -35,6 +35,28 @@ Database initialization (backend/initDb.js)
   Use: Ensures updated_at column exists for security controls.
 - UPDATE security_controls SET updated_at = CURRENT_TIMESTAMP WHERE updated_at IS NULL
   Use: Backfills missing updated_at values.
+- DO $$ ... SELECT c.udt_name FROM information_schema.columns ... EXECUTE 'ALTER TABLE public.access_permissions ALTER COLUMN access_type TYPE text USING access_type::text' ... END $$
+  Use: Converts legacy enum/text-compatible access_type definitions to text so all values are handled consistently.
+- UPDATE access_permissions SET access_type = UPPER(access_type) WHERE access_type <> UPPER(access_type)
+  Use: Normalizes access_type values to uppercase.
+- UPDATE access_permissions SET access_type = 'DELETE' WHERE access_type = 'ADMIN'
+  Use: Migrates legacy ADMIN value to DELETE.
+- DO $$ ... SELECT c.conname FROM pg_constraint ... pg_get_constraintdef(c.oid) ILIKE '%access_type%' ... EXECUTE format('ALTER TABLE public.access_permissions DROP CONSTRAINT %I', check_name) ... END $$
+  Use: Drops existing access_type check constraint before recreating the expected one.
+- ALTER TABLE public.access_permissions ADD CONSTRAINT access_permissions_access_type_check CHECK (access_type IN ('READ','WRITE','UPDATE','DELETE'))
+  Use: Enforces allowed access_type values.
+- DO $$ ... SELECT c.conname FROM pg_constraint ... c.contype = 'u' AND c.conname <> 'uk_permission_role_asset_access' ... EXECUTE format('ALTER TABLE public.access_permissions DROP CONSTRAINT %I', con_rec.conname) ... END $$
+  Use: Removes old unique constraints that conflict with the new role/asset/access uniqueness model.
+- DELETE FROM access_permissions ap USING access_permissions dup WHERE ap.permission_id > dup.permission_id AND ap.role_id = dup.role_id AND ap.asset_id = dup.asset_id AND ap.access_type = dup.access_type
+  Use: Deduplicates permission rows before adding unique constraint.
+- ALTER TABLE public.access_permissions DROP CONSTRAINT IF EXISTS uk_permission_role_asset_access
+  Use: Ensures the expected unique constraint can be recreated safely.
+- ALTER TABLE public.access_permissions ADD CONSTRAINT uk_permission_role_asset_access UNIQUE (role_id, asset_id, access_type)
+  Use: Prevents exact duplicate permission triplets.
+- DO $$ ... SELECT c.conname FROM pg_constraint ... pg_get_constraintdef(c.oid) ILIKE '%risk_level%' ... EXECUTE format('ALTER TABLE public.risk_assessment DROP CONSTRAINT %I', check_name) ... END $$
+  Use: Drops old risk_level check constraint before applying the six-level taxonomy.
+- ALTER TABLE public.risk_assessment ADD CONSTRAINT risk_assessment_risk_level_check CHECK (risk_level IN ('MINIMAL','LOW','MODERATE','HIGH','CRITICAL','EXTREME'))
+  Use: Enforces supported risk level values.
 
 Auth queries (backend/controllers/auth/authController.js)
 - SELECT * FROM users WHERE username = $1 OR email = $2
@@ -101,14 +123,14 @@ Asset-PII mapping queries (backend/controllers/asset-pii/assetPiiController.js)
   Use: Updates mapped column by asset/PII pair.
 
 Permission queries (backend/controllers/permission/permissionController.js)
-- SELECT ap.permission_id, r.role_name, d.asset_name, ap.access_type FROM access_permissions ap JOIN roles r ON ap.role_id = r.role_id JOIN data_assets d ON ap.asset_id = d.asset_id ORDER BY ap.permission_id
-  Use: Lists permissions with role and asset names.
-- SELECT permission_id FROM access_permissions WHERE role_id = $1 AND asset_id = $2
-  Use: Checks if permission already exists for role/asset.
-- UPDATE access_permissions SET access_type = $1 WHERE permission_id = $2 RETURNING *
-  Use: Updates existing permission access type.
+- SELECT ap.permission_id, ap.role_id, ap.asset_id, r.role_name, d.asset_name, ap.access_type FROM access_permissions ap JOIN roles r ON ap.role_id = r.role_id JOIN data_assets d ON ap.asset_id = d.asset_id ORDER BY r.role_name, d.asset_name, ap.access_type
+  Use: Lists permissions with role and asset names in stable alphabetical order.
+- SELECT permission_id, role_id, asset_id, access_type FROM access_permissions WHERE role_id = $1 AND asset_id = $2 AND access_type = $3
+  Use: Checks if exact permission triplet already exists before create.
 - INSERT INTO access_permissions (role_id, asset_id, access_type) VALUES ($1,$2,$3) RETURNING *
   Use: Creates new permission.
+- SELECT permission_id FROM access_permissions WHERE role_id = $1 AND asset_id = $2 AND access_type = $3 AND permission_id <> $4
+  Use: Detects duplicate triplet while updating a specific permission row.
 - UPDATE access_permissions SET role_id = $1, asset_id = $2, access_type = $3 WHERE permission_id = $4
   Use: Edits permission record by ID.
 - DELETE FROM access_permissions WHERE permission_id = $1 RETURNING asset_id
@@ -125,8 +147,8 @@ Security control queries (backend/controllers/security-control/securityControlCo
 Audit queries (backend/controllers/audit/auditController.js and backend/services/auditLogService.js)
 - SELECT a.log_id, COALESCE(u.username, 'Deleted User') AS username, CASE WHEN a.asset_id IS NULL THEN '-' ELSE COALESCE(d.asset_name, 'Deleted Asset') END AS asset_name, a.action, a.timestamp FROM audit_logs a LEFT JOIN users u ... LEFT JOIN data_assets d ... WHERE 1=1 [optional filters] ORDER BY a.timestamp DESC
   Use: Returns audit log list with optional filtering by user/asset.
-- SELECT log_id FROM audit_logs WHERE user_id = $1 AND action = 'READ' AND (($2::int IS NULL AND asset_id IS NULL) OR asset_id = $2) AND timestamp >= NOW() - ($3 * INTERVAL '1 second')
-  Use: Rate-limits duplicate READ logs in short windows.
+- SELECT log_id FROM audit_logs WHERE user_id = $1 AND action = 'READ' AND ($2::int IS NULL AND asset_id IS NULL OR asset_id = $2) AND timestamp >= NOW() - ($3 * INTERVAL '1 second') ORDER BY timestamp DESC LIMIT 1
+  Use: Rate-limits duplicate READ logs in short windows and only checks the most recent candidate.
 - INSERT INTO audit_logs (user_id, asset_id, action) VALUES ($1, $2, $3)
   Use: Writes audit events.
 
@@ -137,12 +159,12 @@ Risk queries (backend/controllers/risk/riskController.js and backend/services/ri
   Use: Lists assets for bulk risk views/calculation.
 - SELECT pt.pii_category, COUNT(DISTINCT apm.asset_id) as asset_count, COUNT(*) as mapping_count, AVG(pt.pii_weight) as avg_weight FROM asset_pii_mapping apm LEFT JOIN pii_types pt ON apm.pii_id = pt.pii_id GROUP BY pt.pii_category ORDER BY asset_count DESC
   Use: Builds PII distribution analytics.
-- SELECT asset_name, sensitivity_level FROM data_assets WHERE asset_id = $1
-  Use: Gets base asset data for scoring.
-- SELECT COUNT(DISTINCT apm.pii_id) as pii_count, COALESCE(SUM(LEAST(pt.pii_weight, 10)), 0) as total_weight, ARRAY_AGG(DISTINCT pt.pii_category) as pii_categories, MAX(LEAST(pt.pii_weight, 10)) as max_weight, COUNT(DISTINCT apm.pii_id) FILTER (WHERE pt.pii_weight >= 30) as critical_pii_count FROM asset_pii_mapping apm LEFT JOIN pii_types pt ON apm.pii_id = pt.pii_id WHERE apm.asset_id = $1
-  Use: Computes PII-related risk factors.
-- SELECT DISTINCT access_type FROM access_permissions WHERE asset_id = $1
-  Use: Computes permission-related risk factors.
+- SELECT asset_name, sensitivity_level, contains_pii FROM data_assets WHERE asset_id = $1
+  Use: Gets base asset data for scoring, including whether PII weighting should apply.
+- SELECT COUNT(apm.pii_id) as pii_count, COALESCE(SUM(pt.pii_weight), 0) as total_weight, ARRAY_AGG(DISTINCT pt.pii_category) as pii_categories, MAX(pt.pii_weight) as max_weight, COUNT(apm.pii_id) FILTER (WHERE pt.pii_weight >= 70) as critical_pii_count FROM (SELECT DISTINCT pii_id FROM asset_pii_mapping WHERE asset_id = $1) apm LEFT JOIN pii_types pt ON apm.pii_id = pt.pii_id
+  Use: Computes PII-related risk factors using de-duplicated PII IDs per asset.
+- SELECT ap.access_type, r.role_name FROM access_permissions ap JOIN roles r ON ap.role_id = r.role_id WHERE ap.asset_id = $1 ORDER BY r.role_name, ap.access_type
+  Use: Computes permission-related risk factors with per-role access coverage.
 - SELECT COUNT(*) as log_count FROM audit_logs WHERE asset_id = $1
   Use: Computes activity/audit-related risk factor.
 - SELECT encryption, hashing, masking FROM security_controls WHERE asset_id = $1
@@ -153,3 +175,4 @@ Risk queries (backend/controllers/risk/riskController.js and backend/services/ri
   Use: Upserts latest calculated risk result.
 - SELECT * FROM risk_assessment WHERE asset_id = $1
   Use: Returns saved risk assessment for an asset.
+

@@ -10,8 +10,29 @@ function AddPermission() {
 		access_type: "",
 	});
 
+	const getAllowedAccessTypes = (roleName) => {
+		const normalizedRole = String(roleName || "").toUpperCase();
+		if (normalizedRole === "ADMIN") {
+			return ["READ", "WRITE", "UPDATE", "DELETE"];
+		}
+		return ["READ"];
+	};
+
+	const selectedRole = roles.find(
+		(r) => String(r.role_id) === String(form.role_id),
+	);
+	const allowedAccessTypes = selectedRole
+		? getAllowedAccessTypes(selectedRole.role_name)
+		: [];
+
 	useEffect(() => {
-		API.get("/roles").then((res) => setRoles(res.data));
+		API.get("/roles").then((res) =>
+			setRoles(
+				(Array.isArray(res.data) ? res.data : []).filter(
+					(r) => String(r.role_name || "").toUpperCase() !== "ADMIN",
+				),
+			),
+		);
 		API.get("/assets").then((res) => setAssets(res.data));
 	}, []);
 
@@ -26,7 +47,13 @@ function AddPermission() {
 			<h2>Assign Permission</h2>
 
 			<select
-				onChange={(e) => setForm({ ...form, role_id: e.target.value })}
+				onChange={(e) =>
+					setForm({
+						...form,
+						role_id: e.target.value,
+						access_type: "",
+					})
+				}
 			>
 				<option>Select Role</option>
 				{roles.map((r) => (
@@ -49,12 +76,16 @@ function AddPermission() {
 				onChange={(e) =>
 					setForm({ ...form, access_type: e.target.value })
 				}
+				disabled={!selectedRole}
 			>
-				<option>Select Access Type</option>
-				<option value="READ">READ</option>
-				<option value="WRITE">WRITE</option>
-				<option value="UPDATE">UPDATE</option>
-				<option value="DELETE">DELETE</option>
+				<option>
+					{selectedRole ? "Select Access Type" : "Select Role first"}
+				</option>
+				{allowedAccessTypes.map((accessType) => (
+					<option key={accessType} value={accessType}>
+						{accessType}
+					</option>
+				))}
 			</select>
 			<button>Assign</button>
 		</form>

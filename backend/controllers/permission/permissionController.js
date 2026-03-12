@@ -1,6 +1,17 @@
 const pool = require("../../config/db");
 const { logAuditEvent } = require("../../services/auditLogService");
 
+const ROLE_ALLOWED_ACCESS_TYPES = {
+	ADMIN: ["READ", "WRITE", "UPDATE", "DELETE"],
+	ANALYST: ["READ"],
+	INTERN: ["READ"],
+};
+
+const getAllowedAccessTypesForRole = (roleName) => {
+	const normalizedRole = String(roleName || "").toUpperCase();
+	return ROLE_ALLOWED_ACCESS_TYPES[normalizedRole] || ["READ"];
+};
+
 exports.getAllPermissions = async (req, res) => {
 	try {
 		const result = await pool.query(`
@@ -13,6 +24,7 @@ exports.getAllPermissions = async (req, res) => {
     FROM access_permissions ap
     JOIN roles r ON ap.role_id = r.role_id
     JOIN data_assets d ON ap.asset_id = d.asset_id
+		WHERE UPPER(r.role_name) <> 'ADMIN'
     ORDER BY r.role_name, d.asset_name, ap.access_type
   `);
 
@@ -33,6 +45,23 @@ exports.createPermission = async (req, res) => {
 			});
 		}
 
+		const roleResult = await pool.query(
+			"SELECT role_name FROM roles WHERE role_id = $1",
+			[role_id],
+		);
+
+		if (roleResult.rows.length === 0) {
+			return res.status(404).json({ error: "Role not found" });
+		}
+
+		if (
+			String(roleResult.rows[0].role_name || "").toUpperCase() === "ADMIN"
+		) {
+			return res.status(400).json({
+				error: "Admin has default full access and should not be managed in Permissions",
+			});
+		}
+
 		const normalizedAccessType = String(access_type).toUpperCase();
 		if (
 			!["READ", "WRITE", "UPDATE", "DELETE"].includes(
@@ -41,6 +70,14 @@ exports.createPermission = async (req, res) => {
 		) {
 			return res.status(400).json({
 				error: "access_type must be one of READ, WRITE, UPDATE, DELETE",
+			});
+		}
+
+		const roleName = roleResult.rows[0].role_name;
+		const allowedAccessTypes = getAllowedAccessTypesForRole(roleName);
+		if (!allowedAccessTypes.includes(normalizedAccessType)) {
+			return res.status(400).json({
+				error: `${roleName} role can only be assigned these access types: ${allowedAccessTypes.join(", ")}`,
 			});
 		}
 
@@ -99,6 +136,23 @@ exports.updatePermission = async (req, res) => {
 			});
 		}
 
+		const roleResult = await pool.query(
+			"SELECT role_name FROM roles WHERE role_id = $1",
+			[role_id],
+		);
+
+		if (roleResult.rows.length === 0) {
+			return res.status(404).json({ error: "Role not found" });
+		}
+
+		if (
+			String(roleResult.rows[0].role_name || "").toUpperCase() === "ADMIN"
+		) {
+			return res.status(400).json({
+				error: "Admin has default full access and should not be managed in Permissions",
+			});
+		}
+
 		const normalizedAccessType = String(access_type).toUpperCase();
 		if (
 			!["READ", "WRITE", "UPDATE", "DELETE"].includes(
@@ -107,6 +161,14 @@ exports.updatePermission = async (req, res) => {
 		) {
 			return res.status(400).json({
 				error: "access_type must be one of READ, WRITE, UPDATE, DELETE",
+			});
+		}
+
+		const roleName = roleResult.rows[0].role_name;
+		const allowedAccessTypes = getAllowedAccessTypesForRole(roleName);
+		if (!allowedAccessTypes.includes(normalizedAccessType)) {
+			return res.status(400).json({
+				error: `${roleName} role can only be assigned these access types: ${allowedAccessTypes.join(", ")}`,
 			});
 		}
 
