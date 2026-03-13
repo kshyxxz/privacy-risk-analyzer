@@ -1,9 +1,4 @@
-import { useContext } from "react";
-import { AuthContext } from "../../context/AuthContext";
-
 export default function LandingPage() {
-	const { user } = useContext(AuthContext);
-
 	return (
 		<div
 			style={{
@@ -180,4 +175,3 @@ export default function LandingPage() {
 		</div>
 	);
 }
-

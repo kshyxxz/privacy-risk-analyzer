@@ -3,12 +3,14 @@ const { logAuditEvent } = require("../../services/auditLogService");
 
 const ROLE_ALLOWED_ACCESS_TYPES = {
 	ADMIN: ["READ", "WRITE", "UPDATE", "DELETE"],
-	ANALYST: ["READ"],
+	ANALYST: ["READ", "UPDATE"],
 	INTERN: ["READ"],
 };
 
 const getAllowedAccessTypesForRole = (roleName) => {
-	const normalizedRole = String(roleName || "").toUpperCase();
+	const normalizedRole = String(roleName || "")
+		.trim()
+		.toUpperCase();
 	return ROLE_ALLOWED_ACCESS_TYPES[normalizedRole] || ["READ"];
 };
 

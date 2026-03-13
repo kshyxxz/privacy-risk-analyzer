@@ -23,9 +23,12 @@ export default function Permissions() {
 	const [saving, setSaving] = useState(false);
 
 	const getAllowedAccessTypes = (roleName) => {
-		const normalizedRole = String(roleName || "").toUpperCase();
+		const normalizedRole = String(roleName || "").trim().toUpperCase();
 		if (normalizedRole === "ADMIN") {
 			return ["READ", "WRITE", "UPDATE", "DELETE"];
+		}
+		if (normalizedRole === "ANALYST") {
+			return ["READ", "UPDATE"];
 		}
 		return ["READ"];
 	};

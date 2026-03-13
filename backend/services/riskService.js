@@ -157,9 +157,8 @@ async function calculateAssetRisk(assetId) {
 		}
 		securityPercent = Math.min(securityPercent, 1);
 
-		// ===========================================
 		// STEP 6: RISK ENGINE - Calculate Final Risk Score
-		// ===========================================
+		//compute calculated risk score
 
 		const piiGate = containsPii ? 1 : 0;
 		const piiNormalized = Math.min(totalPiiWeight, 300) / 300;
@@ -182,7 +181,7 @@ async function calculateAssetRisk(assetId) {
 		);
 		const riskScore = finalNormalizedScore * 100;
 
-		// Layer 2: compute per-asset ceiling (security excluded)
+		//compute per-asset ceiling (security excluded)
 		const maxSensitivity = 0.2;
 		const maxPermissions = 0.3;
 		const maxAudit = 0.15;
@@ -197,7 +196,7 @@ async function calculateAssetRisk(assetId) {
 		const t4 = maxScore * 0.65;
 		const t5 = maxScore * 0.85;
 
-		// Layer 3: resolve label against dynamic ceiling thresholds
+		//resolve label against dynamic ceiling thresholds
 		let riskLevel = "MINIMAL";
 		if (riskScore <= t1) {
 			riskLevel = "MINIMAL";
@@ -316,7 +315,7 @@ async function calculateAllAssetRisks() {
 }
 
 /**
- * Save risk assessment to database (optional - for historical tracking)
+ * Save risk assessment to database- for historical tracking)
  */
 async function saveRiskAssessment(assetId, riskScore, riskLevel) {
 	try {

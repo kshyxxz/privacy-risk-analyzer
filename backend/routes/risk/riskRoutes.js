@@ -3,11 +3,6 @@ const router = express.Router();
 const riskController = require("../../controllers/risk/riskController");
 const { verifyToken } = require("../../middleware/authMiddleware");
 
-/**
- * GET /api/risk/summary
- * Get risk summary statistics across all assets
- * Returns: { totalAssets, countsByLevel, highRiskCount, mediumRiskCount, lowRiskCount, averageRiskScore, byCategory }
- */
 router.get("/summary", verifyToken, riskController.getRiskSummary);
 
 /**

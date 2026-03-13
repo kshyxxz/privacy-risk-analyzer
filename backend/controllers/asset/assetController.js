@@ -62,7 +62,7 @@ exports.createAsset = async (req, res) => {
 
 			if (userExists.rows.length === 0) {
 				console.warn(
-					"⚠️ createAsset: created_by not found in users table, saving as NULL:",
+					" createAsset: created_by not found in users table, saving as NULL:",
 					normalizedCreatedBy,
 				);
 				normalizedCreatedBy = null;
