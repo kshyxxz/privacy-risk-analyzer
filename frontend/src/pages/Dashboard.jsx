@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from "react";
+﻿import { useContext, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 import Navbar from "../components/Navbar";
@@ -40,6 +40,8 @@ export default function Dashboard() {
 	});
 
 	const [activities, setActivities] = useState([]);
+	const [analystRiskAssets, setAnalystRiskAssets] = useState([]);
+	const [highRiskAssetsList, setHighRiskAssetsList] = useState([]);
 	const [loading, setLoading] = useState(true);
 
 	const getRiskCounts = (assets = []) => {
@@ -72,6 +74,8 @@ export default function Dashboard() {
 
 				// Fetch data based on role
 				if (role === "Admin") {
+					setAnalystRiskAssets([]);
+					setHighRiskAssetsList([]);
 					// Admin can access all data
 					const [usersRes, riskRes, piiRes, auditRes] =
 						await Promise.all([
@@ -122,6 +126,7 @@ export default function Dashboard() {
 						})) || [],
 					);
 				} else if (role === "Analyst") {
+					setHighRiskAssetsList([]);
 					// Analyst can access assets and risk data
 					const [riskRes, auditRes] = await Promise.all([
 						api
@@ -157,6 +162,14 @@ export default function Dashboard() {
 						extremeRisk: countsByLevel.EXTREME,
 					});
 
+					setAnalystRiskAssets(
+						(riskRes.data || []).slice().sort((a, b) => {
+							const aScore = Number(a.riskScore) || 0;
+							const bScore = Number(b.riskScore) || 0;
+							return bScore - aScore;
+						}),
+					);
+
 					setActivities(
 						auditRes.data?.slice(0, 5).map((log) => ({
 							username: log.username,
@@ -165,16 +178,32 @@ export default function Dashboard() {
 						})) || [],
 					);
 				} else if (role === "Intern") {
-					// Intern can only see assigned assets
-					const assetsRes = await api
-						.get("/assets")
-						.catch(() => ({ data: [], status: 200 }));
+					setAnalystRiskAssets([]);
+					// Intern can see assets and basic risk info
+					const [assetsRes, riskRes] = await Promise.all([
+						api
+							.get("/assets")
+							.catch(() => ({ data: [], status: 200 })),
+						api
+							.get("/risk/all")
+							.catch(() => ({ data: [], status: 200 })),
+					]);
+
+					const { highRiskCount } = getRiskCounts(riskRes.data || []);
+
+					const highRiskList = (riskRes.data || []).filter(
+						(a) =>
+							a.riskLevel === "HIGH" ||
+							a.riskLevel === "CRITICAL" ||
+							a.riskLevel === "EXTREME",
+					);
+					setHighRiskAssetsList(highRiskList);
 
 					setStats({
 						totalAssets: assetsRes.data?.length || 0,
 						totalUsers: 0,
 						totalPiiTypes: 0,
-						highRiskAssets: 0,
+						highRiskAssets: highRiskCount,
 						mediumRiskAssets: 0,
 						lowRiskAssets: 0,
 					});
@@ -645,6 +674,182 @@ export default function Dashboard() {
 							<RecentActivity activities={activities} />
 						</div>
 
+						{analystRiskAssets.length > 0 && (
+							<div
+								style={{
+									backgroundColor: "white",
+									borderRadius: "8px",
+									boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+									overflow: "hidden",
+									marginBottom: "30px",
+								}}
+							>
+								<div
+									style={{
+										padding: "16px 20px",
+										borderBottom: "1px solid #f0f0f0",
+									}}
+								>
+									<h3 style={{ margin: 0, fontSize: "16px" }}>
+										Risk Breakdown by Asset
+									</h3>
+									<p
+										style={{
+											margin: "4px 0 0",
+											fontSize: "12px",
+											color: "#888",
+										}}
+									>
+										Mapped view for the risk summary cards
+										above
+									</p>
+								</div>
+								<table
+									style={{
+										width: "100%",
+										borderCollapse: "collapse",
+									}}
+								>
+									<thead>
+										<tr
+											style={{
+												backgroundColor: "#f8f9fa",
+											}}
+										>
+											{[
+												"Asset Name",
+												"Database",
+												"Table",
+												"Risk Level",
+												"Risk Score",
+											].map((h) => (
+												<th
+													key={h}
+													style={{
+														padding: "10px 16px",
+														textAlign: "left",
+														fontSize: "12px",
+														color: "#666",
+														fontWeight: "600",
+														textTransform:
+															"uppercase",
+														borderBottom:
+															"1px solid #f0f0f0",
+													}}
+												>
+													{h}
+												</th>
+											))}
+										</tr>
+									</thead>
+									<tbody>
+										{analystRiskAssets.map((asset) => {
+											const levelColors = {
+												EXTREME: {
+													bg: "#fde8e8",
+													text: "#dc3545",
+												},
+												CRITICAL: {
+													bg: "#fde8d8",
+													text: "#a04000",
+												},
+												HIGH: {
+													bg: "#fff3cd",
+													text: "#856404",
+												},
+												MODERATE: {
+													bg: "#fff8e1",
+													text: "#8a6d3b",
+												},
+												LOW: {
+													bg: "#e8f5e9",
+													text: "#2e7d32",
+												},
+												MINIMAL: {
+													bg: "#e3f2fd",
+													text: "#1565c0",
+												},
+											};
+											const color = levelColors[
+												asset.riskLevel
+											] || { bg: "#eee", text: "#333" };
+
+											return (
+												<tr
+													key={asset.asset_id}
+													style={{
+														borderBottom:
+															"1px solid #f0f0f0",
+													}}
+												>
+													<td
+														style={{
+															padding:
+																"10px 16px",
+															fontWeight: "500",
+														}}
+													>
+														{asset.asset_name}
+													</td>
+													<td
+														style={{
+															padding:
+																"10px 16px",
+															color: "#666",
+														}}
+													>
+														{asset.db_name}
+													</td>
+													<td
+														style={{
+															padding:
+																"10px 16px",
+															color: "#666",
+														}}
+													>
+														{asset.table_name}
+													</td>
+													<td
+														style={{
+															padding:
+																"10px 16px",
+														}}
+													>
+														<span
+															style={{
+																backgroundColor:
+																	color.bg,
+																color: color.text,
+																padding:
+																	"2px 10px",
+																borderRadius:
+																	"12px",
+																fontSize:
+																	"12px",
+																fontWeight:
+																	"600",
+															}}
+														>
+															{asset.riskLevel}
+														</span>
+													</td>
+													<td
+														style={{
+															padding:
+																"10px 16px",
+															color: "#666",
+														}}
+													>
+														{asset.riskScore}%
+													</td>
+												</tr>
+											);
+										})}
+									</tbody>
+								</table>
+							</div>
+						)}
+
 						{/* Analysis Links */}
 						<div
 							style={{
@@ -804,7 +1009,7 @@ export default function Dashboard() {
 								bgColor="#28a745"
 							/>
 							<StatCard
-								title="Asset Sensitivity"
+								title="High Risk Assets %"
 								value={`${Math.round((stats.highRiskAssets / Math.max(stats.totalAssets, 1)) * 100)}%`}
 								icon="⚠️"
 								bgColor="#dc3545"
@@ -861,6 +1066,170 @@ export default function Dashboard() {
 								</p>
 							</div>
 						</div>
+
+						{highRiskAssetsList.length > 0 && (
+							<div
+								style={{
+									marginTop: "30px",
+									backgroundColor: "white",
+									borderRadius: "8px",
+									boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+									overflow: "hidden",
+								}}
+							>
+								<div
+									style={{
+										padding: "16px 20px",
+										borderBottom: "1px solid #f0f0f0",
+									}}
+								>
+									<h3 style={{ margin: 0, fontSize: "16px" }}>
+										⚠️ High Risk Assets (
+										{highRiskAssetsList.length})
+									</h3>
+									<p
+										style={{
+											margin: "4px 0 0",
+											fontSize: "12px",
+											color: "#888",
+										}}
+									>
+										Assets rated HIGH, CRITICAL or EXTREME
+										risk
+									</p>
+								</div>
+								<table
+									style={{
+										width: "100%",
+										borderCollapse: "collapse",
+									}}
+								>
+									<thead>
+										<tr
+											style={{
+												backgroundColor: "#f8f9fa",
+											}}
+										>
+											{[
+												"Asset Name",
+												"Database",
+												"Table",
+												"Risk Level",
+												"Risk Score",
+											].map((h) => (
+												<th
+													key={h}
+													style={{
+														padding: "10px 16px",
+														textAlign: "left",
+														fontSize: "12px",
+														color: "#666",
+														fontWeight: "600",
+														textTransform:
+															"uppercase",
+														borderBottom:
+															"1px solid #f0f0f0",
+													}}
+												>
+													{h}
+												</th>
+											))}
+										</tr>
+									</thead>
+									<tbody>
+										{highRiskAssetsList.map((asset) => {
+											const levelColors = {
+												HIGH: {
+													bg: "#fff3cd",
+													text: "#856404",
+												},
+												CRITICAL: {
+													bg: "#fde8d8",
+													text: "#a04000",
+												},
+												EXTREME: {
+													bg: "#fde8e8",
+													text: "#dc3545",
+												},
+											};
+											const color = levelColors[
+												asset.riskLevel
+											] || { bg: "#eee", text: "#333" };
+											return (
+												<tr
+													key={asset.asset_id}
+													style={{
+														borderBottom:
+															"1px solid #f0f0f0",
+													}}
+												>
+													<td
+														style={{
+															padding:
+																"10px 16px",
+															fontWeight: "500",
+														}}
+													>
+														{asset.asset_name}
+													</td>
+													<td
+														style={{
+															padding:
+																"10px 16px",
+															color: "#666",
+														}}
+													>
+														{asset.db_name}
+													</td>
+													<td
+														style={{
+															padding:
+																"10px 16px",
+															color: "#666",
+														}}
+													>
+														{asset.table_name}
+													</td>
+													<td
+														style={{
+															padding:
+																"10px 16px",
+														}}
+													>
+														<span
+															style={{
+																backgroundColor:
+																	color.bg,
+																color: color.text,
+																padding:
+																	"2px 10px",
+																borderRadius:
+																	"12px",
+																fontSize:
+																	"12px",
+																fontWeight:
+																	"600",
+															}}
+														>
+															{asset.riskLevel}
+														</span>
+													</td>
+													<td
+														style={{
+															padding:
+																"10px 16px",
+															color: "#666",
+														}}
+													>
+														{asset.riskScore}%
+													</td>
+												</tr>
+											);
+										})}
+									</tbody>
+								</table>
+							</div>
+						)}
 
 						<div
 							style={{

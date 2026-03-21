@@ -3,11 +3,6 @@ const router = express.Router();
 const riskController = require("../../controllers/risk/riskController");
 const { verifyToken } = require("../../middleware/authMiddleware");
 
-/**
- * GET /api/risk/summary
- * Get risk summary statistics across all assets
- * Returns: { totalAssets, countsByLevel, highRiskCount, mediumRiskCount, lowRiskCount, averageRiskScore, byCategory }
- */
 router.get("/summary", verifyToken, riskController.getRiskSummary);
 
 /**
@@ -16,6 +11,16 @@ router.get("/summary", verifyToken, riskController.getRiskSummary);
  * Returns array of assets with calculated risk levels based on assigned PII types
  */
 router.get("/all", verifyToken, riskController.getAllAssetsRisk);
+
+/**
+ * POST /api/risk/recalculate-all
+ * Recalculate and persist risk_assessment for all assets
+ */
+router.post(
+	"/recalculate-all",
+	verifyToken,
+	riskController.recalculateAllAssetRisks,
+);
 
 /**
  * GET /api/risk/:assetId

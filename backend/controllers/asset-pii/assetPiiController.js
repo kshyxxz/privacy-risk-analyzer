@@ -9,11 +9,6 @@ exports.assignPiiToAsset = async (req, res) => {
 	try {
 		const { asset_id, mappings } = req.body;
 
-		console.log(
-			"[assignPiiToAsset] Received request body:",
-			JSON.stringify(req.body, null, 2),
-		);
-
 		// Handle both batch and single mapping formats
 		let mappingsArray = [];
 
@@ -30,25 +25,14 @@ exports.assignPiiToAsset = async (req, res) => {
 				},
 			];
 		} else {
-			console.log("[assignPiiToAsset] ERROR - Invalid request format");
-			console.log("  asset_id:", asset_id);
-			console.log("  has mappings array:", Array.isArray(mappings));
-			console.log("  req.body.pii_id:", req.body.pii_id);
-			console.log("  req.body.column_name:", req.body.column_name);
 			return res.status(400).json({
 				error: "Missing required fields: asset_id and (mappings array OR pii_id, column_name)",
 			});
 		}
 
-		console.log(
-			"[assignPiiToAsset] Processing mappingsArray:",
-			JSON.stringify(mappingsArray, null, 2),
-		);
-
 		// Validate all mappings have required fields
 		for (let i = 0; i < mappingsArray.length; i++) {
 			const mapping = mappingsArray[i];
-			console.log(`[assignPiiToAsset] Validating mapping ${i}:`, mapping);
 
 			if (
 				mapping.asset_id === null ||
@@ -106,9 +90,6 @@ exports.assignPiiToAsset = async (req, res) => {
 					assetId,
 					risk.riskScore,
 					risk.riskLevel,
-				);
-				console.log(
-					`[assignPiiToAsset] Risk recalculated for asset ${assetId}: ${risk.riskLevel} (${risk.riskScore}%)`,
 				);
 			} catch (riskError) {
 				console.error(
@@ -203,9 +184,6 @@ exports.removePiiFromAsset = async (req, res) => {
 				risk.riskScore,
 				risk.riskLevel,
 			);
-			console.log(
-				`[removePiiFromAsset] Risk recalculated for asset ${deletedAssetId}: ${risk.riskLevel} (${risk.riskScore}%)`,
-			);
 		} catch (riskError) {
 			console.error(
 				`Error recalculating risk for asset ${deletedAssetId}:`,
@@ -268,4 +246,3 @@ exports.updateAssetPiiMapping = async (req, res) => {
 		res.status(500).json({ error: "Failed to update PII mapping" });
 	}
 };
-

@@ -22,6 +22,24 @@ export default function Permissions() {
 	});
 	const [saving, setSaving] = useState(false);
 
+	const getAllowedAccessTypes = (roleName) => {
+		const normalizedRole = String(roleName || "").trim().toUpperCase();
+		if (normalizedRole === "ADMIN") {
+			return ["READ", "WRITE", "UPDATE", "DELETE"];
+		}
+		if (normalizedRole === "ANALYST") {
+			return ["READ", "UPDATE"];
+		}
+		return ["READ"];
+	};
+
+	const selectedRole = roles.find(
+		(r) => String(r.role_id) === String(form.role_id),
+	);
+	const allowedAccessTypes = selectedRole
+		? getAllowedAccessTypes(selectedRole.role_name)
+		: [];
+
 	useEffect(() => {
 		if (!isAdmin) {
 			setLoading(false);
@@ -38,7 +56,12 @@ export default function Permissions() {
 					API.get("/assets"),
 				]);
 				setPermissions(Array.isArray(permRes.data) ? permRes.data : []);
-				setRoles(Array.isArray(rolesRes.data) ? rolesRes.data : []);
+				setRoles(
+					(Array.isArray(rolesRes.data) ? rolesRes.data : []).filter(
+						(r) =>
+							String(r.role_name || "").toUpperCase() !== "ADMIN",
+					),
+				);
 				setAssets(Array.isArray(assetsRes.data) ? assetsRes.data : []);
 			} catch (err) {
 				console.error("Failed to load data:", err);
@@ -156,6 +179,7 @@ export default function Permissions() {
 										setForm({
 											...form,
 											role_id: e.target.value,
+											access_type: "",
 										})
 									}
 									style={selectStyle}
@@ -210,12 +234,21 @@ export default function Permissions() {
 									}
 									style={selectStyle}
 									required
+									disabled={!selectedRole}
 								>
-									<option value="">Select Access Type</option>
-									<option value="READ">READ</option>
-									<option value="WRITE">WRITE</option>
-									<option value="UPDATE">UPDATE</option>
-									<option value="DELETE">DELETE</option>
+									<option value="">
+										{selectedRole
+											? "Select Access Type"
+											: "Select Role first"}
+									</option>
+									{allowedAccessTypes.map((accessType) => (
+										<option
+											key={accessType}
+											value={accessType}
+										>
+											{accessType}
+										</option>
+									))}
 								</select>
 							</div>
 

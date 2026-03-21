@@ -213,3 +213,51 @@ exports.recalculateAssetRisk = async (req, res) => {
 		res.status(500).json({ error: "Failed to recalculate asset risk" });
 	}
 };
+
+/**
+ * Recalculate and save risk for all assets
+ * Used by Refresh Data button to persist latest risk_assessment snapshot
+ */
+exports.recalculateAllAssetRisks = async (req, res) => {
+	try {
+		const userId = req.user?.user_id;
+
+		const assetsResult = await pool.query(
+			"SELECT asset_id FROM data_assets ORDER BY asset_id",
+		);
+		const assets = assetsResult.rows;
+
+		const recalculated = await Promise.all(
+			assets.map(async ({ asset_id: assetId }) => {
+				const riskData = await calculateAssetRisk(assetId);
+				await saveRiskAssessment(
+					assetId,
+					riskData.riskScore,
+					riskData.riskLevel,
+				);
+
+				return {
+					asset_id: assetId,
+					riskScore: riskData.riskScore,
+					riskLevel: riskData.riskLevel,
+				};
+			}),
+		);
+
+		await logAuditEvent({
+			userId,
+			action: "UPDATE",
+		});
+
+		res.json({
+			message: "All asset risks recalculated and saved",
+			totalAssets: recalculated.length,
+			results: recalculated,
+		});
+	} catch (error) {
+		console.error("Error recalculating all asset risks:", error);
+		res.status(500).json({
+			error: "Failed to recalculate all asset risks",
+		});
+	}
+};

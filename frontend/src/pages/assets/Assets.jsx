@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from "react";
+import { useCallback, useContext, useEffect, useState } from "react";
 import Navbar from "../../components/Navbar";
 import api from "../../api/axiosConfig";
 import { AuthContext } from "../../context/AuthContext";
@@ -22,7 +22,7 @@ export default function Assets() {
 		contains_pii: false,
 	});
 
-	const fetchAssets = async () => {
+	const fetchAssets = useCallback(async () => {
 		try {
 			setLoading(true);
 			setError("");
@@ -34,13 +34,11 @@ export default function Assets() {
 		} finally {
 			setLoading(false);
 		}
-	};
+	}, []);
 
 	useEffect(() => {
-		console.log("👤 Current user:", user);
-		console.log("🔐 Role from localStorage:", role);
 		fetchAssets();
-	}, []);
+	}, [fetchAssets]);
 
 	const handleAddAsset = async (e) => {
 		e.preventDefault();
@@ -369,15 +367,6 @@ const inputStyle = {
 	padding: "10px",
 	border: "1px solid #ccc",
 	borderRadius: "6px",
-};
-
-const checkboxLabelStyle = {
-	display: "inline-flex",
-	alignItems: "center",
-	gap: "8px",
-	marginTop: "12px",
-	fontSize: "14px",
-	color: "#333",
 };
 
 const gridCheckboxLabelStyle = {

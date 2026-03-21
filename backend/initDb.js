@@ -4,8 +4,6 @@ const path = require("path");
 
 async function initializeDatabase() {
 	try {
-		console.log("Checking database tables...");
-
 		// First, check if users table exists
 		const checkTable = await pool.query(`
 			SELECT table_name FROM information_schema.tables 
@@ -13,8 +11,6 @@ async function initializeDatabase() {
 		`);
 
 		if (checkTable.rows.length === 0) {
-			console.log("❌ Users table not found. Applying schema...");
-
 			// Read and execute schema
 			const schemaPath = path.join(__dirname, "schema.sql");
 			const schema = fs.readFileSync(schemaPath, "utf8");
@@ -34,23 +30,7 @@ async function initializeDatabase() {
 					);
 				}
 			}
-
-			console.log("✅ Database schema applied successfully!");
-		} else {
-			console.log("✅ Users table already exists");
 		}
-
-		// Check all tables
-		const tables = await pool.query(`
-			SELECT table_name FROM information_schema.tables 
-			WHERE table_schema = 'public' 
-			ORDER BY table_name
-		`);
-
-		console.log("\n📋 Existing tables:");
-		tables.rows.forEach((row) => {
-			console.log(`   - ${row.table_name}`);
-		});
 
 		// Ensure baseline roles exist for auth and access control.
 		await pool.query(
@@ -61,8 +41,6 @@ async function initializeDatabase() {
 			 ON CONFLICT (role_name) DO NOTHING`,
 		);
 
-		console.log("✅ Default roles verified (Admin, Analyst, Intern)");
-
 		// Ensure security_controls has updated_at for UI "Last Updated".
 		await pool.query(
 			"ALTER TABLE security_controls ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
@@ -70,7 +48,6 @@ async function initializeDatabase() {
 		await pool.query(
 			"UPDATE security_controls SET updated_at = CURRENT_TIMESTAMP WHERE updated_at IS NULL",
 		);
-		console.log("✅ security_controls.updated_at verified");
 
 		// Ensure access_permissions supports the allowed model (READ/WRITE/UPDATE/DELETE).
 		// Some legacy databases used a custom enum for access_type; convert to text first
@@ -165,6 +142,26 @@ async function initializeDatabase() {
 			UNIQUE (role_id, asset_id, access_type)
 		`);
 
+		// Backfill default permissions model for existing rows:
+		// - All roles get READ on all assets
+		// - Admin also gets WRITE, UPDATE, DELETE on all assets
+		await pool.query(`
+			INSERT INTO access_permissions (role_id, asset_id, access_type)
+			SELECT
+				r.role_id,
+				da.asset_id,
+				access_map.access_type
+			FROM roles r
+			CROSS JOIN data_assets da
+			CROSS JOIN LATERAL (
+				SELECT 'READ'::text AS access_type
+				UNION ALL SELECT 'WRITE'::text WHERE UPPER(r.role_name) = 'ADMIN'
+				UNION ALL SELECT 'UPDATE'::text WHERE UPPER(r.role_name) = 'ADMIN'
+				UNION ALL SELECT 'DELETE'::text WHERE UPPER(r.role_name) = 'ADMIN'
+			) access_map
+			ON CONFLICT (role_id, asset_id, access_type) DO NOTHING
+		`);
+
 		// Ensure risk_assessment supports the dynamic six-level taxonomy.
 		await pool.query(`
 			DO $$
@@ -191,9 +188,6 @@ async function initializeDatabase() {
 			ADD CONSTRAINT risk_assessment_risk_level_check
 			CHECK (risk_level IN ('MINIMAL','LOW','MODERATE','HIGH','CRITICAL','EXTREME'))
 		`);
-		console.log("✅ risk and permission constraints verified");
-
-		console.log("✅ Database initialization complete!\n");
 		return true;
 	} catch (error) {
 		console.error("❌ Database initialization error:", error.message);

@@ -3,12 +3,9 @@ const { logAuditEvent } = require("../../services/auditLogService");
 
 exports.getAssets = async (req, res) => {
 	try {
-		console.log("📦 Fetching all assets for user:", req.user?.username);
 		const result = await pool.query(
 			"SELECT data_assets.*, LOWER(COALESCE(sensitivity_level, '')) AS risk_level FROM data_assets ORDER BY asset_id",
 		);
-
-		console.log("   ✅ Found", result.rows.length, "assets");
 		res.status(200).json(result.rows);
 	} catch (error) {
 		console.error("   ❌ Error fetching assets:", error.message);
@@ -17,6 +14,7 @@ exports.getAssets = async (req, res) => {
 };
 
 exports.createAsset = async (req, res) => {
+	const client = await pool.connect();
 	try {
 		const {
 			asset_name,
@@ -26,15 +24,6 @@ exports.createAsset = async (req, res) => {
 			contains_pii,
 			created_by,
 		} = req.body;
-
-		console.log("📝 Create Asset Request:", {
-			asset_name,
-			db_name,
-			table_name,
-			sensitivity_level,
-			contains_pii,
-			created_by,
-		});
 
 		// Input validation
 		if (!asset_name) {
@@ -73,7 +62,7 @@ exports.createAsset = async (req, res) => {
 
 			if (userExists.rows.length === 0) {
 				console.warn(
-					"⚠️ createAsset: created_by not found in users table, saving as NULL:",
+					" createAsset: created_by not found in users table, saving as NULL:",
 					normalizedCreatedBy,
 				);
 				normalizedCreatedBy = null;
@@ -82,12 +71,9 @@ exports.createAsset = async (req, res) => {
 
 		const normalizedContainsPii = Boolean(contains_pii);
 
-		console.log("🔧 Normalized values:", {
-			normalizedCreatedBy,
-			normalizedContainsPii,
-		});
+		await client.query("BEGIN");
 
-		const result = await pool.query(
+		const result = await client.query(
 			"INSERT INTO data_assets(asset_name, db_name, table_name, sensitivity_level, contains_pii, created_by) VALUES($1,$2,$3,$4,$5,$6) RETURNING *",
 			[
 				asset_name,
@@ -99,15 +85,44 @@ exports.createAsset = async (req, res) => {
 			],
 		);
 
+		const createdAssetId = result.rows[0]?.asset_id;
+
+		if (createdAssetId) {
+			await client.query(
+				`
+				INSERT INTO access_permissions (role_id, asset_id, access_type)
+				SELECT
+					r.role_id,
+					$1::int AS asset_id,
+					access_map.access_type
+				FROM roles r
+				CROSS JOIN LATERAL (
+					SELECT 'READ'::text AS access_type
+					UNION ALL SELECT 'WRITE'::text WHERE UPPER(r.role_name) = 'ADMIN'
+					UNION ALL SELECT 'UPDATE'::text WHERE UPPER(r.role_name) = 'ADMIN'
+					UNION ALL SELECT 'DELETE'::text WHERE UPPER(r.role_name) = 'ADMIN'
+				) access_map
+				ON CONFLICT (role_id, asset_id, access_type) DO NOTHING
+				`,
+				[createdAssetId],
+			);
+		}
+
+		await client.query("COMMIT");
+
 		await logAuditEvent({
 			userId: req.user?.user_id,
-			assetId: result.rows[0]?.asset_id || null,
+			assetId: createdAssetId || null,
 			action: "WRITE",
 		});
-
-		console.log("✅ Asset created:", result.rows[0]);
 		res.status(201).json(result.rows[0]);
 	} catch (error) {
+		try {
+			await client.query("ROLLBACK");
+		} catch (rollbackError) {
+			console.error("❌ Rollback failed:", rollbackError.message);
+		}
+
 		console.error("❌ Error creating asset:", error);
 		if (error.code === "23503") {
 			return res.status(400).json({
@@ -115,6 +130,8 @@ exports.createAsset = async (req, res) => {
 			});
 		}
 		res.status(500).json({ error: "Failed to create asset" });
+	} finally {
+		client.release();
 	}
 };
 
@@ -158,4 +175,3 @@ exports.deleteAsset = async (req, res) => {
 		res.status(500).json({ error: "Failed to delete asset" });
 	}
 };
-

@@ -24,7 +24,9 @@ const AuditTable = ({ logs }) => {
 							<td style={cellBodyStyle}>{log.log_id}</td>
 							<td style={cellBodyStyle}>{log.username || "-"}</td>
 							<td style={cellBodyStyle}>
-								{log.asset_name || "-"}
+								{!log.asset_name || log.asset_name === "-"
+									? "All Assets"
+									: log.asset_name}
 							</td>
 							<td style={cellBodyStyle}>{log.action}</td>
 							<td style={cellBodyStyle}>
